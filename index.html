@@ -2071,6 +2071,24 @@ input[type="date"].input { color-scheme: dark; }
   $("photo-clear").addEventListener("click", () => { delete photos[current]; store.del("photo-" + current); render(); });
 
   /* ================= запуск ================= */
+  // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
+  // На мостике не нужно: там страница никогда не кэшируется.
+  const BUILD = "2026-10-30-3";
+  async function checkUpdate() {
+    if (!/github\.io$/.test(location.hostname)) return;
+    try {
+      const r = await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" });
+      const m = (await r.text()).match(/const BUILD = "([^"]+)"/);
+      if (!m || m[1] === BUILD) return;
+      let done = null; try { done = sessionStorage.getItem("mn-reloaded"); } catch (e) {}
+      if (done === m[1]) return;   // уже перезагружались ради этой версии — не зацикливаемся
+      try { sessionStorage.setItem("mn-reloaded", m[1]); } catch (e) {}
+      await fetch(location.pathname, { cache: "reload" });   // кладём свежую страницу в кэш браузера
+      location.reload();
+    } catch (e) {}
+  }
+  checkUpdate();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
   journal = store.get("journal-local", []);
   render(); fillNotifyForm(); route();
   (async () => {
