@@ -129,6 +129,9 @@ p.muted { margin: 0; }
 .tile span:last-child { font-size: 12px; color: var(--muted); }
 .row-btn { border: 0; border-radius: 999px; padding: 14px 18px; background: var(--surface2); color: var(--ink); display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 14px; text-align: left; text-decoration: none; cursor: pointer; }
 .row-btn svg { flex: none; color: var(--accent-text); }
+button.row-btn { width: 100%; font-family: inherit; }
+#ble-card .note { margin: 10px 0 0; }
+#ble-card .list { margin-top: 6px; }
 .row-btn .grow { flex: 1; min-width: 0; }
 .row-btn .side { font-size: 13px; color: var(--accent-text); white-space: nowrap; }
 .row-btn .side.off { color: var(--muted); }
@@ -324,6 +327,10 @@ input[type="date"].input { color-scheme: dark; }
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
       <span class="grow" id="due-text"></span><span class="side" id="due-side"></span>
     </a>
+    <button class="row-btn" type="button" id="ble-row" hidden>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>
+      <span class="grow" id="ble-text">Подключить адаптер</span><span class="side" id="ble-side"></span>
+    </button>
     <a class="row-btn" href="#settings" id="notify-row">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/></svg>
       <span class="grow">Уведомления</span><span class="side" id="notify-side"></span>
@@ -457,6 +464,13 @@ input[type="date"].input { color-scheme: dark; }
       </details>
       <div class="btn-row"><button class="btn" id="n-save">Сохранить</button><button class="btn soft" id="n-test">Проверить</button></div>
       <p class="muted" id="n-msg" aria-live="polite"></p>
+    </div>
+
+    <div class="card" id="ble-card" hidden>
+      <div class="card-head"><h2>Адаптер по Bluetooth</h2><button class="mini acc" id="ble-btn">Подключить</button></div>
+      <p class="muted">Телефон подключается к адаптеру сам, когда вы рядом с машиной. Выберите машину сверху, включите READY и нажмите «Подключить». Работает в Chrome на Android.</p>
+      <p class="note warn" id="ble-err" hidden></p>
+      <div class="list" id="ble-check"></div>
     </div>
 
     <div class="card">
@@ -722,11 +736,21 @@ input[type="date"].input { color-scheme: dark; }
   let ncfg = { server: "https://ntfy.sh", topic: "", onLimit: true, onAux: true, onEvening: true, onJournal: true, onHeat: true, onMorning: true, onQuiet: true, limit: 80, lowSoc: 40, eveningHour: 21, heatLimit: 40, morningHour: 7, quietFrom: 23, quietTo: 7, hasLoc: false, lat: 0, lon: 0, city: "" };
   let foundPlace = null;
   let health = [];
+  const direct = { leaf: store.get("direct-leaf", null), ariya: store.get("direct-ariya", null) };
   const SWITCHES = ["onLimit", "onAux", "onHeat", "onEvening", "onJournal", "onMorning", "onQuiet"];
   const TEMPS = [20, 10, 0, -10, -20];
   const monthTemp = [-10, -10, 0, 10, 10, 20, 20, 20, 10, 10, 0, -10][new Date().getMonth()];
   const trip = store.get("trip", { dist: 40, rt: false, temp: monthTemp, speed: "city", clim: true });
 
+  function decodeInto(car, raw, v) {
+    if (car === "leaf") {
+      Object.assign(v, leafMain(raw["2101"]) || {});
+      const cells = leafCells(raw["2102"]);
+      if (cells) { v.vmin = Math.min(...cells); v.vmax = Math.max(...cells); v.cellCount = cells.length; }
+      v.temps = leafTemps(raw["2104"]);
+    } else v.soc = ariyaSoc(raw["015B"]);
+    return v;
+  }
   function buildView(car) {
     const m = META[car];
     let v;
@@ -734,14 +758,14 @@ input[type="date"].input { color-scheme: dark; }
       const st = bridge.cars[car] || {};
       const raw = st.raw || {};
       v = { adapter: !!st.addr, addr: st.addr, ok: st.ok, seen: st.seen, awake: st.awake, lastAwake: st.lastAwake, lastPoll: st.lastPoll, err: st.err, aux: parseFloat(st.volt) || null };
-      if (car === "leaf") {
-        Object.assign(v, leafMain(raw["2101"]) || {});
-        const cells = leafCells(raw["2102"]);
-        if (cells) { v.vmin = Math.min(...cells); v.vmax = Math.max(...cells); v.cellCount = cells.length; }
-        v.temps = leafTemps(raw["2104"]);
-      } else v.soc = ariyaSoc(raw["015B"]);
+      decodeInto(car, raw, v);
+    } else if (direct[car]) {
+      // без мостика: последние данные, которые телефон сам получил от адаптера
+      const d = direct[car];
+      v = { adapter: true, ok: true, seen: true, awake: !!d.awake && nowSec() - d.t < 600, lastAwake: d.lastAwake, lastPoll: d.t, aux: parseFloat(d.volt) || null };
+      decodeInto(car, d.raw || {}, v);
     } else {
-      // без мостика данных нет: везде прочерки
+      // данных ещё нет: везде прочерки
       v = { adapter: false, ok: false, seen: false, awake: false, soc: null, soh: null, aux: null };
     }
     if (v.soh == null && v.ah && m.nominalAh) v.soh = v.ah / m.nominalAh * 100;
@@ -1232,7 +1256,15 @@ input[type="date"].input { color-scheme: dark; }
     document.querySelectorAll("#dots i").forEach((d, i) => d.classList.toggle("on", IDS[i] === current));
   }
   function statusText(v) {
-    if (!live) return ["", ""];
+    if (!live) {
+      const mine = ble.car === current;
+      if (mine && ble.state === "busy") return ["Подключаюсь к адаптеру…", ""];
+      const d = direct[current];
+      if (mine && ble.state === "on" && d && !d.awake) return ["Адаптер на связи, машина не отвечает", "включите READY"];
+      if (!d || !d.lastAwake) return ["", ""];
+      if (mine && ble.state === "on" && v.awake) return ["Обновлено " + ago(d.lastAwake), "лимит " + (ncfg.limit || 80) + "%"];
+      return ["Данные " + when(d.lastAwake), ""];
+    }
     if (live && !v.adapter) return ["Адаптер не выбран", ""];
     if (v.charging) {
       const s = v.sess[0], lim = ncfg.limit || 80;
@@ -1279,6 +1311,7 @@ input[type="date"].input { color-scheme: dark; }
       $("due-side").textContent = dueText(due.days);
       $("due-side").className = "side" + (due.days <= 7 ? " warn" : "");
     }
+    renderBle();
     const on = live && ncfg.topic;
     $("notify-side").textContent = on ? "включены" : "не настроены";
     $("notify-side").className = "side" + (on ? "" : " off");
@@ -1592,7 +1625,7 @@ input[type="date"].input { color-scheme: dark; }
     } else $("scan-list").innerHTML = "";
 
     document.querySelectorAll("#con-car button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.car === consoleCar));
-    $("con-send").disabled = !live;
+    $("con-send").disabled = !live && ble.state !== "on";
     $("photo-clear").hidden = !(photos[current] || store.get("photo-" + current, null));
     const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
     $("bridge-info").innerHTML = live
@@ -1603,9 +1636,15 @@ input[type="date"].input { color-scheme: dark; }
   function renderTop() {
     document.querySelectorAll(".switcher button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.car === current));
     const l = $("link"), v = view[current];
-    l.hidden = !live;
-    if (!live) l.textContent = "";
-    else if (v.charging) { l.className = "link on"; l.textContent = "Заряжается"; }
+    if (!live) {
+      const mine = ble.car === current && ble.state !== "off";
+      l.hidden = !mine;
+      l.className = "link" + (ble.state === "on" ? " on" : "");
+      l.textContent = mine ? (ble.state === "on" ? "Адаптер" : "Подключаюсь") : "";
+      return;
+    }
+    l.hidden = false;
+    if (v.charging) { l.className = "link on"; l.textContent = "Заряжается"; }
     else if (v.awake) { l.className = "link on"; l.textContent = "На связи"; }
     else if (v.adapter && v.ok) { l.className = "link"; l.textContent = "Спит"; }
     else { l.className = "link warn"; l.textContent = v.adapter ? "Нет связи" : "Нет адаптера"; }
@@ -1991,7 +2030,8 @@ input[type="date"].input { color-scheme: dark; }
         }
         await loadHistory(current);
       } catch (e) {}
-    } else await new Promise((r) => setTimeout(r, 900));
+    } else if (ble.state === "on") await blePoll();
+    else await new Promise((r) => setTimeout(r, 900));
     introPending = true;
     render();
     $("ptr-text").textContent = "Обновлено";
@@ -2041,7 +2081,14 @@ input[type="date"].input { color-scheme: dark; }
     const c = $("con-in").value.trim().toUpperCase();
     if (!c) return;
     const out = $("con-out");
-    if (!live) { out.textContent += "> " + c + "\nКонсоль работает только с мостиком.\n\n"; out.scrollTop = out.scrollHeight; return; }
+    if (!live) {
+      if (ble.state !== "on") { out.textContent += "> " + c + "\nСначала подключите адаптер.\n\n"; out.scrollTop = out.scrollHeight; return; }
+      out.textContent += "> " + c + " (" + META[ble.car].name + ", напрямую)\n";
+      if (!cmdAllowed(c)) out.textContent += "Команда не разрешена: консоль только читает данные\n\n";
+      else { $("con-send").disabled = true; out.textContent += (await elm(c, 6000)) + "\n\n"; $("con-send").disabled = false; }
+      out.scrollTop = out.scrollHeight;
+      return;
+    }
     $("con-send").disabled = true;
     out.textContent += "> " + c + " (" + META[consoleCar].name + ")\n";
     try { const r = await api("api/cmd?car=" + consoleCar + "&c=" + encodeURIComponent(c), {}, 50000); out.textContent += (await r.text()) + "\n\n"; }
@@ -2070,10 +2117,178 @@ input[type="date"].input { color-scheme: dark; }
   });
   $("photo-clear").addEventListener("click", () => { delete photos[current]; store.del("photo-" + current); render(); });
 
+  /* ================= прямое подключение к адаптеру =================
+     Без мостика телефон сам подключается к ELM327 по Bluetooth LE (Chrome на Android).
+     Команды те же, что у мостика: только чтение, ничего не записывается в блоки машины. */
+  const ble = { state: "off", car: null, dev: null, rx: null, tx: null, buf: "", wait: null, chain: Promise.resolve(), timer: 0, ver: "", check: null, err: "", polling: false };
+  // каналы, на которых сидят известные BLE-адаптеры ELM327 (китайские клоны, Vgate/vLinker, LELink, OBDLink и др.)
+  const BLE_SERVICES = [0xfff0, 0xffe0, 0x18f0, 0xae30, 0xfee7, 0xffb0,
+    "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "6e400001-b5a3-f393-e0a9-e50e24dcca9e", "0000fff0-0000-1000-8000-00805f9b34fb"];
+  const CAR_SETUP = { leaf: ["ATSH79B", "ATFCSH79B", "ATFCSD300000", "ATFCSM1", "ATCRA7BB"], ariya: ["ATSH7DF", "ATFCSM0", "ATCRA"] };
+  const CAR_QUERIES = { leaf: ["2101", "2102", "2104"], ariya: ["015B"] };
+  const isNoData = (r) => !r || /NO DATA|CAN ERROR|UNABLE|BUS|STOPPED|TIMEOUT|ERROR|NOT CONNECTED/.test(r) || r.trim() === "?";
+  // как на мостике: пропускаем только запросы на чтение
+  function cmdAllowed(c) {
+    c = c.toUpperCase().replace(/\s+/g, "");
+    if (!c || c.length > 24 || !/^[0-9A-Z]+$/.test(c)) return false;
+    if (c.startsWith("AT")) return !/^AT(PP|MA|MR|MT|BD|WS)/.test(c);
+    return ["01", "02", "03", "06", "09", "21", "22"].includes(c.slice(0, 2));
+  }
+  function bleAvailable() {
+    if (!window.isSecureContext || !navigator.bluetooth) return "Нужен Chrome на Android и приложение, открытое по адресу https://diana-troyanova.github.io/mynissan/";
+    return "";
+  }
+  function onBleData(e) {
+    ble.buf += new TextDecoder().decode(e.target.value);
+    if (ble.wait) ble.wait();
+  }
+  async function bleWrite(text) {
+    const data = new TextEncoder().encode(text), ch = ble.tx;
+    for (let i = 0; i < data.length; i += 20) {
+      const part = data.slice(i, i + 20);
+      if (ch.properties.writeWithoutResponse && ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(part);
+      else if (ch.writeValueWithResponse) await ch.writeValueWithResponse(part);
+      else await ch.writeValue(part);
+    }
+  }
+  // одна команда адаптеру; ждём приглашение «>», команды идут строго по очереди
+  function elm(cmd, timeout) {
+    const run = () => new Promise((resolve) => {
+      if (!ble.tx) return resolve("NOT CONNECTED");
+      ble.buf = "";
+      let done = false, t = 0;
+      const finish = (timedOut) => {
+        if (done) return;
+        done = true; clearTimeout(t); ble.wait = null;
+        let out = ble.buf.replace(/>/g, "").replace(/\r/g, "\n").split("\n").map((l) => l.trim())
+          .filter((l) => l && l.toUpperCase() !== cmd.toUpperCase() && !/^SEARCHING/i.test(l)).join("\n");
+        if (timedOut) out += out ? "\nTIMEOUT" : "TIMEOUT";
+        resolve(out);
+      };
+      t = setTimeout(() => finish(true), timeout || 2500);
+      ble.wait = () => { if (ble.buf.includes(">")) finish(false); };
+      bleWrite(cmd + "\r").catch(() => finish(true));
+    });
+    const p = ble.chain.then(run, run);
+    ble.chain = p.catch(() => {});
+    return p;
+  }
+  function bleCleanup() {
+    clearInterval(ble.timer); ble.timer = 0;
+    const dev = ble.dev;
+    ble.dev = ble.rx = ble.tx = null; ble.state = "off"; ble.polling = false;
+    if (ble.wait) ble.wait = null;
+    if (dev) { dev.removeEventListener("gattserverdisconnected", onBleGone); try { if (dev.gatt.connected) dev.gatt.disconnect(); } catch (e) {} }
+  }
+  function onBleGone() { bleCleanup(); ble.err = "Связь с адаптером пропала. Подойдите ближе к машине и подключитесь снова."; render(); }
+  async function bleConnect(car) {
+    const why = bleAvailable();
+    if (why) { ble.err = why; ble.car = car; render(); return; }
+    bleCleanup();
+    Object.assign(ble, { state: "busy", car, err: "", check: null, ver: "" });
+    render();
+    try {
+      const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: BLE_SERVICES });
+      ble.dev = dev;
+      dev.addEventListener("gattserverdisconnected", onBleGone);
+      const server = await dev.gatt.connect();
+      // ищем пару «уведомления + запись» — так у BLE-адаптеров устроен последовательный канал
+      let rx = null, tx = null;
+      for (const sv of await server.getPrimaryServices()) {
+        let chs; try { chs = await sv.getCharacteristics(); } catch (e) { continue; }
+        const n = chs.find((c) => c.properties.notify || c.properties.indicate);
+        const w = chs.find((c) => c.properties.writeWithoutResponse || c.properties.write);
+        if (n && w) { rx = n; tx = w; break; }
+      }
+      if (!rx) throw Object.assign(new Error("nochan"), { name: "NoChannel" });
+      ble.rx = rx; ble.tx = tx;
+      rx.addEventListener("characteristicvaluechanged", onBleData);
+      await rx.startNotifications();
+      await elm("ATZ", 3000);
+      for (const c of ["ATE0", "ATL0", "ATS1", "ATH1", "ATSP6", "ATSTFF"]) await elm(c);
+      ble.ver = (await elm("ATI")).split("\n").filter((l) => !/OK|TIMEOUT/.test(l)).pop() || "";
+      ble.state = "on";
+      buzz(10);
+      await blePoll();
+      clearInterval(ble.timer);
+      ble.timer = setInterval(() => { if (!document.hidden) blePoll(); }, 60000);
+    } catch (e) {
+      const name = e && e.name;
+      bleCleanup();
+      ble.err = name === "NotFoundError" ? ""                                   // закрыли список устройств
+        : name === "SecurityError" ? "Bluetooth на этой странице запрещён. Откройте приложение по адресу https://diana-troyanova.github.io/mynissan/ в Chrome."
+        : name === "NoChannel" ? "Это устройство не похоже на адаптер ELM327. Выберите другое из списка."
+        : name === "NotAllowedError" ? "Разрешите Chrome доступ к Bluetooth и устройствам поблизости."
+        : "Не удалось подключиться. Проверьте, что машина включена, адаптер светится, и попробуйте ещё раз.";
+    }
+    render();
+  }
+  function bleDisconnect() { bleCleanup(); ble.err = ""; render(); }
+  // опрос машины: то же самое, что делает мостик
+  async function blePoll() {
+    if (ble.state !== "on" || ble.polling) return;
+    ble.polling = true;
+    const car = ble.car, now = nowSec();
+    try {
+      const volt = await elm("ATRV");
+      for (const c of CAR_SETUP[car]) await elm(c);
+      const raw = {};
+      let awake = false, first = true;
+      for (const q of CAR_QUERIES[car]) {
+        const r = await elm(q, 4000);
+        if (first) { first = false; awake = !isNoData(r); if (!awake) break; }
+        raw[q] = r;
+      }
+      if (ble.state !== "on") return;
+      const prev = direct[car] || {};
+      const d = { t: now, volt, awake, raw: awake ? raw : (prev.raw || {}), lastAwake: awake ? now : (prev.lastAwake || 0) };
+      direct[car] = d; store.set("direct-" + car, d);
+      const v = decodeInto(car, d.raw, {});
+      ble.check = { ver: ble.ver, volt: parseFloat(volt) || null, answer: awake, soc: awake ? v.soc : null };
+      // своя история на телефоне: графики и зарядки работают и без мостика
+      const h = store.get("dhist-" + car, []);
+      h.push({ t: now, soc: awake && v.soc != null ? Math.round(v.soc * 10) / 10 : null, volt: parseFloat(volt) || null });
+      while (h.length > 4000) h.shift();
+      store.set("dhist-" + car, h);
+      if (!live) hist[car] = h;
+      if (car === "leaf" && awake && v.soh != null) {
+        const hh = store.get("dhealth", []), last = hh[hh.length - 1];
+        const rec = { t: now, soh: v.soh, ah: v.ah != null ? v.ah : v.soh / 100 * META.leaf.nominalAh };
+        if (last && new Date(last.t * 1000).toDateString() === new Date(now * 1000).toDateString()) hh[hh.length - 1] = rec; else hh.push(rec);
+        store.set("dhealth", hh);
+        if (!live) health = hh;
+      }
+    } catch (e) {}
+    ble.polling = false;
+    if (!live) render();
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && ble.state === "on") blePoll(); });
+  function renderBle() {
+    const row = $("ble-row"), card = $("ble-card");
+    row.hidden = live; card.hidden = live;
+    if (live) return;
+    const mine = ble.car === current, busy = ble.state === "busy", on = ble.state === "on";
+    $("ble-text").textContent = busy ? "Подключаюсь к адаптеру…" : on ? (mine ? "Адаптер подключён" : "Адаптер в " + META[ble.car].name) : "Подключить адаптер";
+    $("ble-side").innerHTML = busy ? '<span class="spinner"></span>' : on ? "отключить" : META[current].name;
+    $("ble-side").className = "side" + (on ? " off" : "");
+    $("ble-btn").textContent = on ? "Отключить" : busy ? "Подключаю…" : "Подключить";
+    $("ble-btn").disabled = busy;
+    $("ble-err").textContent = ble.err; $("ble-err").hidden = !ble.err;
+    const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
+    const ck = ble.check;
+    $("ble-check").innerHTML = ck && ble.car ? li("Машина", META[ble.car].name) + li("Адаптер", esc(ck.ver || "—")) +
+      li("Аккумулятор 12 В", ck.volt != null ? fmt(ck.volt, 1) + " В" : "—") +
+      li(ble.car === "leaf" ? "Блок батареи" : "Заряд по OBD", ck.answer ? '<span class="ok-text">отвечает</span>' : '<span class="warn-text">не отвечает</span>') +
+      (ck.soc != null ? li("Заряд", Math.round(ck.soc) + "%") : "") : "";
+  }
+  function bleToggle() { if (ble.state === "on") bleDisconnect(); else if (ble.state === "off") bleConnect(current); }
+  $("ble-row").addEventListener("click", bleToggle);
+  $("ble-btn").addEventListener("click", bleToggle);
+
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-10-30-3";
+  const BUILD = "2026-10-30-4";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
@@ -2090,6 +2305,8 @@ input[type="date"].input { color-scheme: dark; }
   checkUpdate();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
   journal = store.get("journal-local", []);
+  IDS.forEach((c) => { hist[c] = store.get("dhist-" + c, []); });
+  health = store.get("dhealth", []);
   render(); fillNotifyForm(); route();
   (async () => {
     try {
