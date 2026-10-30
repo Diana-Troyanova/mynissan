@@ -130,6 +130,19 @@ p.muted { margin: 0; }
 .row-btn { border: 0; border-radius: 999px; padding: 14px 18px; background: var(--surface2); color: var(--ink); display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 14px; text-align: left; text-decoration: none; cursor: pointer; }
 .row-btn svg { flex: none; color: var(--accent-text); }
 button.row-btn { width: 100%; font-family: inherit; }
+/* инструкция в настройках: раскрывается по нажатию */
+.howto { display: block; }
+.howto .list { margin-top: 4px; }
+.howto summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; font-weight: 600; font-size: 16px; }
+.howto summary::-webkit-details-marker { display: none; }
+.howto summary svg { color: var(--muted); transition: transform .2s; flex: none; }
+.howto[open] summary svg { transform: rotate(180deg); }
+.howto h3 { font-size: 14px; font-weight: 600; margin: 18px 0 8px; color: var(--accent-text); }
+.howto .steps { margin: 0; padding-left: 22px; display: grid; gap: 8px; font-size: 14px; }
+.howto .steps li::marker { color: var(--muted); font-family: var(--f-num); }
+.howto p.muted { margin: 10px 0 0; }
+.howto .li { align-items: flex-start; gap: 12px; }
+.howto .li span:last-child { text-align: right; }
 #ble-card .note { margin: 10px 0 0; }
 #ble-card .list { margin-top: 6px; }
 .row-btn .grow { flex: 1; min-width: 0; }
@@ -438,6 +451,45 @@ input[type="date"].input { color-scheme: dark; }
   <section class="screen" id="settings" hidden>
     <h1 class="title">Настройки</h1>
 
+    <details class="card howto" id="howto">
+      <summary><span>Инструкция по подключению</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+
+      <h3>Адаптер с телефона</h3>
+      <ol class="steps">
+        <li>Откройте приложение в <b>Chrome</b> по адресу <b>diana-troyanova.github.io/mynissan</b>.</li>
+        <li>Включите на телефоне <b>Bluetooth</b> и <b>геолокацию</b>. Без геолокации Android не находит адаптеры.</li>
+        <li>Вставьте адаптер в разъём OBD2: он под рулём слева внизу, на уровне колена. На адаптере загорится огонёк.</li>
+        <li>Включите машину, чтобы горело <b>READY</b>.</li>
+        <li>Вверху выберите машину, в которой стоит адаптер: Leaf или Ariya.</li>
+        <li>На главной нажмите <b>«Подключить адаптер»</b> и выберите его в списке: обычно <b>OBDII</b>, <b>V-LINK</b> или <b>Vgate</b>.</li>
+        <li>Если Chrome спросит разрешение на устройства поблизости, разрешите.</li>
+      </ol>
+      <p class="muted">В настройках Bluetooth телефона адаптер сопрягать не нужно. Пока он подключён, данные обновляются раз в минуту; обновить сразу — потяните главный экран вниз.</p>
+
+      <h3>Если не получается</h3>
+      <div class="list">
+        <div class="li"><span>Адаптера нет в списке</span><span class="muted">включите геолокацию, выньте и вставьте адаптер</span></div>
+        <div class="li"><span>Не подключается</span><span class="muted">закройте другие приложения для OBD, перезапустите Bluetooth</span></div>
+        <div class="li"><span>«Машина не отвечает»</span><span class="muted">включите READY и потяните экран вниз</span></div>
+        <div class="li"><span>У Leaf нет данных батареи</span><span class="muted">адаптер-клон не понимает команды, нужен другой</span></div>
+      </div>
+
+      <h3>Через мостик дома</h3>
+      <ol class="steps">
+        <li>Прошейте плату ESP32 и загрузите на неё приложение по инструкции из README.</li>
+        <li>Откройте <b>mynissan.local</b> с телефона в домашнем Wi-Fi.</li>
+        <li>Здесь, в настройках, в карточке «Адаптеры» нажмите <b>«Найти»</b> и назначьте адаптер каждой машине.</li>
+      </ol>
+      <p class="muted">Мостик сам опрашивает машины круглые сутки, ведёт историю и присылает уведомления.</p>
+    </details>
+
+    <div class="card" id="ble-card" hidden>
+      <div class="card-head"><h2>Адаптер по Bluetooth</h2><button class="mini acc" id="ble-btn">Подключить</button></div>
+      <p class="muted">Телефон подключается к адаптеру сам, когда вы рядом с машиной. Выберите машину сверху, включите READY и нажмите «Подключить». Работает в Chrome на Android.</p>
+      <p class="note warn" id="ble-err" hidden></p>
+      <div class="list" id="ble-check"></div>
+    </div>
+
     <div class="card" id="notify-card">
       <h2>Уведомления</h2>
       <p class="muted">Приходят через бесплатное приложение ntfy. Установите его из Google Play или F-Droid, нажмите «+» и введите название канала ниже.</p>
@@ -464,13 +516,6 @@ input[type="date"].input { color-scheme: dark; }
       </details>
       <div class="btn-row"><button class="btn" id="n-save">Сохранить</button><button class="btn soft" id="n-test">Проверить</button></div>
       <p class="muted" id="n-msg" aria-live="polite"></p>
-    </div>
-
-    <div class="card" id="ble-card" hidden>
-      <div class="card-head"><h2>Адаптер по Bluetooth</h2><button class="mini acc" id="ble-btn">Подключить</button></div>
-      <p class="muted">Телефон подключается к адаптеру сам, когда вы рядом с машиной. Выберите машину сверху, включите READY и нажмите «Подключить». Работает в Chrome на Android.</p>
-      <p class="note warn" id="ble-err" hidden></p>
-      <div class="list" id="ble-check"></div>
     </div>
 
     <div class="card">
@@ -2288,7 +2333,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-10-30-4";
+  const BUILD = "2026-10-30-5";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
