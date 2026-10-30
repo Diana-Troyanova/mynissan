@@ -243,7 +243,6 @@ input[type="date"].input { color-scheme: dark; }
 .cmd-row .btn { width: auto; padding: 12px 18px; font-size: 14px; }
 .file-btn { position: relative; overflow: hidden; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.demo-note { text-align: center; font-size: 12px; color: var(--dim); margin: 0; }
 
 /* pull to refresh */
 .ptr { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 30; transform: translate(-50%, -80px); display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; color: var(--muted); transition: transform .25s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
@@ -284,7 +283,7 @@ input[type="date"].input { color-scheme: dark; }
       <button data-car="leaf">Leaf</button>
       <button data-car="ariya">Ariya</button>
     </div>
-    <span class="link" id="link">Демо</span>
+    <span class="link" id="link" hidden></span>
   </div>
 
   <!-- ГЛАВНАЯ -->
@@ -329,7 +328,6 @@ input[type="date"].input { color-scheme: dark; }
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/></svg>
       <span class="grow">Уведомления</span><span class="side" id="notify-side"></span>
     </a>
-    <p class="demo-note" id="demo-note">Демо-данные. Настоящие появятся, когда приложение открыто с мостика.</p>
   </section>
 
   <!-- БАТАРЕЯ -->
@@ -712,34 +710,6 @@ input[type="date"].input { color-scheme: dark; }
     return s.length > 1 ? used : null;
   }
 
-  /* ================= демо ================= */
-  function demoHist(car) {
-    const now = nowSec(), pts = [];
-    let soc = car === "leaf" ? 35 : 72;
-    for (let t = now - 7 * 86400; t <= now; t += 1200) {
-      const d = new Date(t * 1000), h = d.getHours() + d.getMinutes() / 60;
-      const drive = (h >= 8 && h < 9) || (h >= 18 && h < 19);
-      const charge = car === "leaf" ? (h >= 22 || h < 4) : (d.getDate() % 3 === 0 && h >= 20 && h < 24);
-      if (drive) soc -= car === "leaf" ? 4.6 : 2.4;
-      if (charge && soc < 80) soc = Math.min(80, soc + (car === "leaf" ? 3.9 : 4.4));
-      soc = Math.max(9, soc);
-      pts.push({ t, soc: Math.round(soc * 10) / 10, volt: car === "leaf" ? 12.6 : 12.4 });
-    }
-    return pts;
-  }
-  const demoRaw = (car) => car === "leaf"
-    ? { soh: 83, hx: 78.4, ah: 65.6, packV: 371.2, vmin: 3.912, vmax: 3.931, cellCount: 96, temps: [14, 15, 14, 13], aux: 12.6 }
-    : { soh: null, aux: 12.4 };
-  function demoHealth() {
-    const out = [], now = new Date();
-    for (let k = 12; k >= 0; k--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - k, 15);
-      const soh = 86.9 - (12 - k) * 0.32 + ((k * 7) % 5 - 2) * 0.06;
-      out.push({ t: Math.floor(d.getTime() / 1000), soh, ah: soh / 100 * 79 });
-    }
-    return out;
-  }
-
   /* ================= состояние ================= */
   let current = store.get("car", "leaf"); if (!META[current]) current = "leaf";
   let period = 1, live = false, bridge = null, busy = false, scanResults = null;
@@ -771,9 +741,8 @@ input[type="date"].input { color-scheme: dark; }
         v.temps = leafTemps(raw["2104"]);
       } else v.soc = ariyaSoc(raw["015B"]);
     } else {
-      v = Object.assign({ adapter: true, ok: true, seen: true, awake: true, lastAwake: nowSec() - 180, lastPoll: nowSec() - 180 }, demoRaw(car));
-      const h = hist[car];
-      v.soc = h.length ? h[h.length - 1].soc : null;
+      // без мостика данных нет: везде прочерки
+      v = { adapter: false, ok: false, seen: false, awake: false, soc: null, soh: null, aux: null };
     }
     if (v.soh == null && v.ah && m.nominalAh) v.soh = v.ah / m.nominalAh * 100;
     v.temp = v.temps && v.temps.length ? Math.round(v.temps.reduce((a, b) => a + b, 0) / v.temps.length) : null;
@@ -1263,6 +1232,7 @@ input[type="date"].input { color-scheme: dark; }
     document.querySelectorAll("#dots i").forEach((d, i) => d.classList.toggle("on", IDS[i] === current));
   }
   function statusText(v) {
+    if (!live) return ["", ""];
     if (live && !v.adapter) return ["Адаптер не выбран", ""];
     if (v.charging) {
       const s = v.sess[0], lim = ncfg.limit || 80;
@@ -1312,7 +1282,6 @@ input[type="date"].input { color-scheme: dark; }
     const on = live && ncfg.topic;
     $("notify-side").textContent = on ? "включены" : "не настроены";
     $("notify-side").className = "side" + (on ? "" : " off");
-    $("demo-note").hidden = live;
   }
 
   /* ================= батарея ================= */
@@ -1401,8 +1370,9 @@ input[type="date"].input { color-scheme: dark; }
     const from = nowSec() - period * 86400;
     const pts = hist[current].filter((p) => p.t >= from && p.soc != null);
     const ses = v.sess.filter((s) => s.end >= from);
-    $("h-kwh").textContent = fmt(ses.reduce((a, s) => a + s.kwh, 0), 1) + " кВт·ч";
-    $("h-count").textContent = String(ses.length);
+    const noData = !hist[current].length;   // мостика нет — прочерки вместо нулей
+    $("h-kwh").textContent = noData ? "—" : fmt(ses.reduce((a, s) => a + s.kwh, 0), 1) + " кВт·ч";
+    $("h-count").textContent = noData ? "—" : String(ses.length);
     const used = usedSince(hist[current], from);
     $("h-use").textContent = used != null ? Math.round(used / period) + "%" : "—";
     $("h-min").textContent = pts.length ? Math.round(Math.min(...pts.map((p) => p.soc))) + "%" : "—";
@@ -1605,7 +1575,7 @@ input[type="date"].input { color-scheme: dark; }
     $("adapters").innerHTML = IDS.map((c) => {
       const v = view[c];
       let st;
-      if (!live) st = "<small>демо</small>";
+      if (!live) st = "<small>мостик не подключён</small>";
       else if (!v.adapter) st = '<small class="warn-text">не выбран</small>';
       else st = "<small>" + esc(v.addr) + " · " + (v.ok ? '<span class="ok-text">на связи</span>' : '<span class="warn-text">' + esc(v.err || "ждём") + "</span>") + "</small>";
       return '<div class="dev"><div><b>' + META[c].name + "</b>" + st + "</div>" + (live && v.adapter ? '<div class="btns"><button class="mini" data-unassign="' + c + '">Убрать</button></div>' : "") + "</div>";
@@ -1627,13 +1597,14 @@ input[type="date"].input { color-scheme: dark; }
     const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
     $("bridge-info").innerHTML = live
       ? li("Адрес", esc(bridge.ip || location.host)) + li("Работает", fmt(Math.floor(bridge.uptime / 3600)) + " ч " + Math.floor(bridge.uptime % 3600 / 60) + " мин") + li("Время мостика", bridge.time > 1700000000 ? when(bridge.time) : "ещё не синхронизировано")
-      : li("Связь", "нет, показаны демо-данные");
+      : li("Связь", "нет");
   }
 
   function renderTop() {
     document.querySelectorAll(".switcher button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.car === current));
     const l = $("link"), v = view[current];
-    if (!live) { l.className = "link"; l.textContent = "Демо"; }
+    l.hidden = !live;
+    if (!live) l.textContent = "";
     else if (v.charging) { l.className = "link on"; l.textContent = "Заряжается"; }
     else if (v.awake) { l.className = "link on"; l.textContent = "На связи"; }
     else if (v.adapter && v.ok) { l.className = "link"; l.textContent = "Спит"; }
@@ -2100,9 +2071,7 @@ input[type="date"].input { color-scheme: dark; }
   $("photo-clear").addEventListener("click", () => { delete photos[current]; store.del("photo-" + current); render(); });
 
   /* ================= запуск ================= */
-  IDS.forEach((c) => { hist[c] = demoHist(c); });
   journal = store.get("journal-local", []);
-  health = demoHealth();
   render(); fillNotifyForm(); route();
   (async () => {
     try {
