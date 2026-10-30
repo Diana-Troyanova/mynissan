@@ -1,0 +1,2120 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyNissan</title>
+<meta name="theme-color" content="#0a0d12">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&family=Onest:wght@400;500;600&display=swap">
+<style>
+/* Layout: one dark phone column. Home: car fills the free space at the top, numbers and tiles sit at the bottom above a pill tab bar. */
+:root {
+  --bg: #0a0d12;
+  --surface: #131820;
+  --surface2: #151a22;
+  --line: #1f2632;
+  --track: #1c222c;
+  --ink: #eef2f6;
+  --muted: #8a94a3;
+  --dim: #7a8595;
+  --accent: #5ee6c8;
+  --accent-text: #7ff0d6;
+  --accent-ink: #0a0d12;
+  --accent-soft: rgb(94 230 200 / .12);
+  --warn: #f2b45a;
+  --danger: #ff8a80;
+  --scrim: rgb(0 0 0 / .6);
+  --f-num: "Sora", "Onest", system-ui, sans-serif;
+  --f-body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html, body { height: 100%; overscroll-behavior-y: contain; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 0;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.app { max-width: 440px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+.num { font-family: var(--f-num); font-weight: 500; font-variant-numeric: tabular-nums; }
+h1, h2 { margin: 0; font-weight: 600; text-wrap: balance; }
+.muted { color: var(--muted); font-size: 13px; }
+p.muted { margin: 0; }
+
+/* top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; }
+.switcher { display: flex; background: var(--surface2); border-radius: 999px; padding: 4px; gap: 4px; }
+.switcher button { border: 0; background: transparent; border-radius: 999px; padding: 9px 18px; font-weight: 500; font-size: 14px; color: var(--muted); cursor: pointer; transition: background .2s, color .2s; }
+.switcher button[aria-pressed="true"] { background: var(--ink); color: var(--bg); font-weight: 600; }
+.link { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.link::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.link.on::before { background: var(--accent); }
+.link.warn::before { background: var(--warn); }
+
+/* screens */
+.screen { display: flex; flex-direction: column; gap: 14px; }
+.screen[hidden] { display: none !important; }
+#home { flex: 1; }
+.title { font-size: 26px; padding: 6px 4px 2px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.title span { font-size: 14px; color: var(--muted); font-weight: 400; }
+
+/* home: car */
+.stage {
+  flex: 1; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding-bottom: 16px; touch-action: pan-y; user-select: none; cursor: grab; perspective: 900px;
+}
+.car-wrap { position: relative; width: 100%; margin: 0 auto; transition: transform .4s cubic-bezier(.2,.8,.2,1), opacity .25s; transform-style: preserve-3d; }
+.car-wrap.leaf { width: 90%; }
+.car-wrap.dragging { transition: none; }
+.car-wrap img { position: relative; display: block; width: 100%; height: auto; pointer-events: none; -webkit-user-drag: none; }
+.car-wrap.three { width: 100%; }
+.car-wrap canvas.car3d { display: block; width: 100%; height: auto; aspect-ratio: 1.6; touch-action: pan-y; }
+.stage.is3d .turntable { display: none; }
+.stage.is3d .turn { padding-bottom: 0; }
+.car-wrap.three .spot { transition: opacity .2s; }
+.car-wrap.three .spot.off { opacity: 0; pointer-events: none; }
+/* пока качается 3D-модель: кольцо-подиум и индикатор на её месте, без старого фото */
+.car-wrap.loading { width: 100%; }
+.car-load { position: relative; width: 100%; aspect-ratio: 1.6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.car-load .plate { position: absolute; left: 9%; right: 9%; bottom: 7%; height: 26%; border-radius: 50%; border: 1.5px solid #3a4552; background: radial-gradient(closest-side, rgb(94 230 200 / .08), rgb(94 230 200 / 0)); }
+.car-load .ld { position: relative; width: 58px; height: 58px; display: grid; place-items: center; margin-bottom: 8%; }
+.car-load .ld::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--track); border-top-color: var(--accent); animation: spin 1s linear infinite; }
+.car-load .ld b { font-size: 13px; font-weight: 600; color: var(--muted); }
+.car-load .retry { width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--surface2); color: var(--ink); display: grid; place-items: center; cursor: pointer; }
+.car-load .retry:active { transform: scale(.94); }
+.car-load .cl-t { font-size: 13px; color: var(--muted); margin-bottom: 8%; }
+@media (prefers-reduced-motion: reduce) { .car-load .ld::before { animation-duration: 2.4s; } }
+.car-wrap img.custom { border-radius: 24px; aspect-ratio: 16 / 10; object-fit: cover; }
+.glow { position: absolute; left: 6%; right: 6%; bottom: -16%; height: 40%; border-radius: 50%; background: radial-gradient(closest-side, rgb(94 230 200 / .2), rgb(94 230 200 / 0)); }
+.spot { position: absolute; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: transparent; display: grid; place-items: center; }
+.spot::before { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: rgb(255 255 255 / .28); animation: ring 2.4s ease-out infinite; }
+.spot::after { content: ""; width: 11px; height: 11px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px rgb(0 0 0 / .25), 0 2px 6px rgb(0 0 0 / .4); position: relative; transition: transform .2s; }
+.spot.live::after { background: var(--accent); }
+.spot:hover::after, .spot[aria-expanded="true"]::after { transform: scale(1.35); }
+@keyframes ring { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+.turn { position: relative; width: 100%; padding-bottom: 18px; }
+.turntable { position: absolute; left: 0; right: 0; bottom: -10px; width: 100%; height: auto; overflow: visible; pointer-events: none; }
+.turntable #ring-dot { transition: transform .4s cubic-bezier(.2,.8,.2,1); }
+.turntable.dragging #ring-dot { transition: none; }
+.turn-hint { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+.dots { display: flex; justify-content: center; gap: 6px; }
+.dots i { width: 6px; height: 6px; border-radius: 999px; background: var(--track); transition: width .25s, background .25s; }
+.dots i.on { width: 18px; background: var(--ink); }
+
+/* home: numbers */
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; border: 0; background: none; padding: 0; cursor: pointer; text-align: center; }
+.pair .col { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--ink); }
+.pair .col:first-child { border-right: 1px solid var(--line); }
+.pair .big { font-family: var(--f-num); font-weight: 500; font-size: 48px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.pair .big small { font-size: .4em; color: var(--muted); margin-left: 3px; font-weight: 400; letter-spacing: 0; }
+.bar-wrap { display: flex; flex-direction: column; gap: 8px; padding: 0 8px; }
+.bar { position: relative; height: 4px; border-radius: 999px; background: var(--track); }
+.bar i { display: block; height: 4px; border-radius: 999px; background: var(--accent); transition: width .6s ease; }
+.bar i.low { background: var(--warn); }
+.bar b { position: absolute; top: -4px; width: 2px; height: 12px; background: #5b6575; }
+.status { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--dim); }
+.status .on { color: var(--accent-text); font-weight: 500; }
+
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 14px 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; color: inherit; text-decoration: none; }
+.tile .num { font-size: 18px; }
+.tile span:last-child { font-size: 12px; color: var(--muted); }
+.row-btn { border: 0; border-radius: 999px; padding: 14px 18px; background: var(--surface2); color: var(--ink); display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 14px; text-align: left; text-decoration: none; cursor: pointer; }
+.row-btn svg { flex: none; color: var(--accent-text); }
+.row-btn .grow { flex: 1; min-width: 0; }
+.row-btn .side { font-size: 13px; color: var(--accent-text); white-space: nowrap; }
+.row-btn .side.off { color: var(--muted); }
+.row-btn .side.warn { color: var(--warn); }
+
+/* cards and lists */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card h2 { font-size: 16px; }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.list { display: flex; flex-direction: column; }
+.li { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); gap: 12px; }
+.li:last-child { border-bottom: 0; padding-bottom: 0; }
+.li:first-child { padding-top: 0; }
+.li > div { min-width: 0; }
+.empty { color: var(--muted); font-size: 14px; text-align: center; padding: 14px 0 4px; }
+
+.ring-row { display: flex; align-items: center; gap: 18px; }
+.ring-row svg { width: 112px; height: 112px; flex: none; }
+.ring-row .list { flex: 1; }
+.capbars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; align-items: end; height: 64px; }
+.capbars i { border-radius: 5px; background: var(--track); }
+.capbars i.on { background: var(--accent); }
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.trio > div { background: var(--surface2); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.trio .num { font-size: 18px; }
+.trio span:last-child { font-size: 12px; color: var(--muted); }
+
+.seg { display: flex; background: var(--surface2); border-radius: 999px; padding: 4px; gap: 4px; }
+.seg button { flex: 1; border: 0; background: transparent; border-radius: 999px; padding: 9px 8px; font-weight: 500; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--surface2); border-radius: 999px; padding: 9px 14px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+
+.totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text { fill: var(--dim); font-family: var(--f-body); font-size: 11px; }
+
+/* forms */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label, .field > .lbl { font-size: 13px; color: var(--muted); }
+.input { border: 1px solid var(--line); background: var(--surface2); border-radius: 14px; padding: 12px 14px; min-width: 0; width: 100%; }
+.input:focus { border-color: var(--accent); outline: none; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+input[type="date"].input { color-scheme: dark; }
+.inline { display: flex; align-items: center; gap: 10px; }
+.inline .input { width: 64px; padding: 8px 10px; text-align: right; font-family: var(--f-num); }
+.km-bar { height: 6px; border-radius: 999px; background: var(--track); overflow: hidden; margin-top: 6px; width: 140px; max-width: 40vw; }
+.km-bar i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.switch-row > div { min-width: 0; }
+.switch { position: relative; width: 50px; height: 30px; border-radius: 999px; border: 0; background: var(--track); cursor: pointer; flex: none; transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); transition: transform .2s; }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--accent-ink); }
+
+.btn { border: 0; border-radius: 999px; padding: 15px 20px; font-weight: 600; font-size: 15px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; display: flex; justify-content: center; align-items: center; gap: 10px; text-decoration: none; }
+.btn.soft { background: var(--surface2); color: var(--ink); }
+.card .btn.soft { background: var(--bg); border: 1px solid var(--line); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mini { border: 0; border-radius: 999px; padding: 9px 15px; font-weight: 600; font-size: 13px; background: var(--surface2); color: var(--ink); cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.mini.acc { background: var(--accent); color: var(--accent-ink); }
+.mini.danger { color: var(--danger); }
+.mini:disabled { opacity: .5; cursor: not-allowed; }
+.spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.note { font-size: 13px; color: var(--muted); background: var(--surface2); border-radius: 14px; padding: 12px 14px; }
+.note.warn { color: var(--ink); box-shadow: inset 3px 0 0 var(--warn); }
+
+/* trip */
+.verdict { display: flex; flex-direction: column; gap: 4px; }
+.verdict .big { font-family: var(--f-num); font-size: 34px; font-weight: 600; line-height: 1.1; }
+.verdict .big.ok { color: var(--accent-text); }
+.verdict .big.tight { color: var(--warn); }
+.verdict .big.no { color: var(--danger); }
+.trip-bar { position: relative; height: 10px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.trip-bar i { position: absolute; top: 0; bottom: 0; border-radius: 999px; }
+
+.compare { display: flex; flex-direction: column; gap: 8px; }
+.cmp { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface2); border-radius: 16px; padding: 12px 14px; }
+.cmp b { font-weight: 600; }
+.cmp .v { font-weight: 600; font-size: 14px; }
+.cmp .v.ok { color: var(--accent-text); } .cmp .v.tight { color: var(--warn); } .cmp .v.no { color: var(--danger); }
+.cmp.best { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* journal */
+.jitem { display: flex; gap: 12px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.jitem:last-child { border-bottom: 0; padding-bottom: 0; }
+.jitem:first-child { padding-top: 0; }
+.jicon { width: 40px; height: 40px; border-radius: 12px; background: var(--surface2); display: grid; place-items: center; flex: none; color: var(--accent-text); }
+.jbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.jbody b { font-weight: 600; overflow-wrap: anywhere; }
+.jdue { font-size: 13px; font-weight: 500; color: var(--muted); }
+.jdue.soon { color: var(--warn); }
+.jdue.over { color: var(--danger); }
+.jactions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.jactions .mini { border: 1px solid var(--line); background: var(--bg); }
+
+/* settings */
+.dev { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.dev:last-child { border-bottom: 0; }
+.dev > div { min-width: 0; }
+.dev b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.dev small { font-size: 12px; color: var(--muted); }
+.dev .btns { display: flex; gap: 6px; flex: none; }
+.ok-text { color: var(--accent-text); }
+.warn-text { color: var(--warn); }
+.console-out { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 12px; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; margin: 0; min-height: 80px; color: var(--muted); }
+.cmd-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.cmd-row .input { font-family: ui-monospace, Menlo, monospace; text-transform: uppercase; }
+.cmd-row .btn { width: auto; padding: 12px 18px; font-size: 14px; }
+.file-btn { position: relative; overflow: hidden; }
+.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.demo-note { text-align: center; font-size: 12px; color: var(--dim); margin: 0; }
+
+/* pull to refresh */
+.ptr { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 30; transform: translate(-50%, -80px); display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; color: var(--muted); transition: transform .25s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
+.ptr.pulling { transition: none; }
+.ptr svg { width: 16px; height: 16px; color: var(--accent-text); }
+.ptr.busy svg { animation: spin .8s linear infinite; }
+/* живая зарядка на фото */
+.turntable.charging ellipse { stroke: var(--accent); animation: ringPulse 2.2s ease-in-out infinite; }
+@keyframes ringPulse { 0%, 100% { stroke-opacity: .35; } 50% { stroke-opacity: 1; } }
+
+/* bottom sheet */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .25s; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; transform: translateY(105%); transition: transform .32s cubic-bezier(.2,.8,.2,1); padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+.sheet:not(.open) { visibility: hidden; transition: transform .32s cubic-bezier(.2,.8,.2,1), visibility 0s .32s; }
+.sheet.open { transform: none; }
+.sheet-in { max-width: 440px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 28px 28px 0 0; padding: 10px 20px calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; max-height: 88vh; overflow-y: auto; }
+.grab { width: 40px; height: 5px; border-radius: 999px; background: var(--track); margin: 0 auto 2px; flex: none; }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sheet-head h2 { font-size: 20px; }
+.x { width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--surface2); cursor: pointer; font-size: 16px; color: var(--muted); flex: none; }
+.sheet-big { font-family: var(--f-num); font-size: 34px; font-weight: 500; line-height: 1; }
+.sheet-big small { font-size: 15px; color: var(--muted); font-weight: 400; margin-left: 6px; font-family: var(--f-body); }
+
+/* tab bar */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: linear-gradient(to top, var(--bg) 65%, rgb(10 13 18 / 0)); }
+.tabbar nav { max-width: 440px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--surface2); border: 1px solid var(--line); border-radius: 999px; padding: 6px; }
+.tabbar a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; border-radius: 999px; color: var(--muted); text-decoration: none; font-size: 10px; font-weight: 500; }
+.tabbar a svg { width: 20px; height: 20px; }
+.tabbar a[aria-current="page"] { background: var(--ink); color: var(--bg); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="app">
+  <div class="top">
+    <div class="switcher" role="group" aria-label="Машина">
+      <button data-car="leaf">Leaf</button>
+      <button data-car="ariya">Ariya</button>
+    </div>
+    <span class="link" id="link">Демо</span>
+  </div>
+
+  <!-- ГЛАВНАЯ -->
+  <section class="screen" id="home">
+    <div class="stage" id="stage" tabindex="0" aria-label="Машина: потяните, чтобы повернуть; точки на ней можно нажать">
+      <div class="turn">
+        <div class="car-wrap" id="car-wrap"></div>
+        <svg class="turntable" id="turntable" viewBox="0 0 360 60" aria-hidden="true">
+          <ellipse cx="180" cy="30" rx="170" ry="22" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+          <path d="M 18 36.7 A 170 22 0 0 0 342 36.7" fill="none" stroke="var(--accent)" stroke-opacity=".45" stroke-width="1.5" stroke-linecap="round"/>
+          <g id="ring-dot" style="transform: translate(180px, 52px)"><circle r="9" fill="var(--accent)" fill-opacity=".18"/><circle r="4.5" fill="var(--accent)"/></g>
+        </svg>
+      </div>
+      <div class="dots" id="dots"><i></i><i></i></div>
+    </div>
+
+    <button class="pair" id="pair" aria-label="Подробнее о батарее">
+      <span class="col"><span class="big" id="soc">—</span><span class="muted">заряд</span></span>
+      <span class="col"><span class="big" id="range">—</span><span class="muted">запас хода, примерно</span></span>
+    </button>
+
+    <div class="bar-wrap">
+      <div class="bar"><i id="bar"></i><b id="limit-mark"></b></div>
+      <div class="status"><span id="status"></span><span id="status-r"></span></div>
+    </div>
+
+    <div class="tiles">
+      <a class="tile" href="#battery"><span class="num" id="t-aux">—</span><span>аккумулятор</span></a>
+      <a class="tile" href="#history"><span class="num" id="t-last">—</span><span id="t-last-l">последняя зарядка</span></a>
+      <a class="tile" href="#history"><span class="num" id="t-today">—</span><span>за сегодня</span></a>
+    </div>
+
+    <a class="row-btn" href="#battery" id="heat-row" hidden>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--warn)"><path d="M12 3c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 0-8z"/></svg>
+      <span class="grow" id="heat-text"></span><span class="side warn">дайте остыть</span>
+    </a>
+    <a class="row-btn" href="#journal" id="due-row" hidden>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+      <span class="grow" id="due-text"></span><span class="side" id="due-side"></span>
+    </a>
+    <a class="row-btn" href="#settings" id="notify-row">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/></svg>
+      <span class="grow">Уведомления</span><span class="side" id="notify-side"></span>
+    </a>
+    <p class="demo-note" id="demo-note">Демо-данные. Настоящие появятся, когда приложение открыто с мостика.</p>
+  </section>
+
+  <!-- БАТАРЕЯ -->
+  <section class="screen" id="battery" hidden>
+    <h1 class="title">Батарея <span id="b-car"></span></h1>
+    <div class="card">
+      <div class="ring-row">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="var(--track)" stroke-width="10"/>
+          <circle id="ring" cx="60" cy="60" r="50" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" transform="rotate(-90 60 60)" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+          <text x="60" y="60" text-anchor="middle" font-family="Sora, sans-serif" font-size="24" font-weight="500" fill="var(--ink)" id="ring-val"></text>
+          <text x="60" y="78" text-anchor="middle" font-family="Onest, sans-serif" font-size="11" fill="var(--muted)">здоровье</text>
+        </svg>
+        <div class="list" id="b-list"></div>
+      </div>
+    </div>
+    <div class="card chart" id="health-card">
+      <div class="card-head"><h2>Как стареет батарея</h2><span class="muted" id="hl-sum"></span></div>
+      <svg id="health-chart" viewBox="0 0 360 150" role="img" aria-label="Здоровье батареи по месяцам"></svg>
+      <p class="muted" id="hl-note"></p>
+    </div>
+    <div class="card" id="capbars-card">
+      <div class="card-head"><h2>Деления ёмкости</h2><span class="num" id="b-bars"></span></div>
+      <div class="capbars" id="capbars"></div>
+    </div>
+    <div class="card" id="cells-card">
+      <div class="card-head"><h2>Ячейки</h2><span class="muted" id="cell-count"></span></div>
+      <div class="trio">
+        <div><span class="num" id="v-min"></span><span>мин., В</span></div>
+        <div><span class="num" id="v-max"></span><span>макс., В</span></div>
+        <div><span class="num" id="v-diff"></span><span>разброс, мВ</span></div>
+      </div>
+    </div>
+    <div class="card" id="temps-card"><h2>Температура</h2><div class="list" id="temps"></div></div>
+    <div class="card" id="b-unknown">
+      <h2>Что ещё известно</h2>
+      <p class="muted">Для Ariya пока читается только заряд. Здоровье, ячейки и температуры появятся, когда найдём нужные команды. Искать их можно в консоли в настройках.</p>
+    </div>
+  </section>
+
+  <!-- ИСТОРИЯ -->
+  <section class="screen" id="history" hidden>
+    <h1 class="title">История <span id="h-car"></span></h1>
+    <div class="seg" role="group" aria-label="Период">
+      <button data-days="1">Сутки</button>
+      <button data-days="7">Неделя</button>
+    </div>
+    <div class="totals">
+      <div class="tile"><span class="num" id="h-kwh"></span><span>заряжено</span></div>
+      <div class="tile"><span class="num" id="h-count"></span><span>зарядок</span></div>
+      <div class="tile"><span class="num" id="h-use"></span><span>расход в день</span></div>
+      <div class="tile"><span class="num" id="h-min"></span><span>минимальный заряд</span></div>
+    </div>
+    <div class="card chart"><h2>Заряд, %</h2><svg id="chart" viewBox="0 0 360 180" role="img" aria-label="Заряд за период"></svg></div>
+    <div class="card"><h2>Зарядки</h2><div class="list" id="sessions"></div></div>
+    <div class="card">
+      <div class="card-head"><h2>Пробег по дням</h2><span class="muted">примерно</span></div>
+      <div class="list" id="km-days"></div>
+      <p class="muted">Считается по тому, сколько заряда ушло, и среднему расходу машины. Поездки без заезда домой между ними складываются в один день.</p>
+    </div>
+  </section>
+
+  <!-- ПОЕЗДКА -->
+  <section class="screen" id="trip" hidden>
+    <h1 class="title">Поездка <span id="p-car"></span></h1>
+    <div class="card">
+      <div class="field">
+        <div class="card-head"><label for="p-dist" class="muted">Расстояние в одну сторону</label><span class="inline"><input class="input" id="p-dist" type="number" min="1" max="600" inputmode="numeric"> <span class="muted">км</span></span></div>
+        <input type="range" id="p-range" min="5" max="300" step="5" aria-label="Расстояние">
+      </div>
+      <div class="switch-row"><span>Туда и обратно</span><button class="switch" id="p-rt" role="switch" aria-checked="false" aria-label="Туда и обратно"></button></div>
+      <div class="field"><span class="lbl">Температура на улице</span><div class="chips" id="p-temp"></div></div>
+      <div class="field"><span class="lbl">Где поедете</span><div class="chips" id="p-speed"></div></div>
+      <div class="switch-row"><div><div>Печка или кондиционер</div><div class="muted">Зимой печка заметно сокращает запас</div></div><button class="switch" id="p-clim" role="switch" aria-checked="true" aria-label="Печка или кондиционер"></button></div>
+    </div>
+    <div class="card" id="p-result"></div>
+  </section>
+
+  <!-- ЖУРНАЛ -->
+  <section class="screen" id="journal" hidden>
+    <h1 class="title">Журнал <button class="mini acc" id="j-add">Добавить</button></h1>
+    <div class="seg" role="group" aria-label="Машина" id="j-filter">
+      <button data-f="all">Все</button>
+      <button data-f="leaf">Leaf</button>
+      <button data-f="ariya">Ariya</button>
+    </div>
+    <div class="card" id="j-due-card"><h2>Сроки</h2><div id="j-due"></div></div>
+    <div class="card" id="j-done-card"><h2>Сделано</h2><div id="j-done"></div></div>
+    <div class="card">
+      <h2>Копия журнала</h2>
+      <p class="muted">Сохраните файл на телефон, чтобы записи не потерялись, если мостик придётся перепрошить.</p>
+      <div class="btn-row">
+        <button class="btn soft" id="j-export">Сохранить копию</button>
+        <label class="btn soft file-btn" for="j-import">Восстановить<input type="file" id="j-import" accept=".json,.txt,application/json,text/plain"></label>
+      </div>
+      <p class="muted" id="j-msg" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- НАСТРОЙКИ -->
+  <section class="screen" id="settings" hidden>
+    <h1 class="title">Настройки</h1>
+
+    <div class="card" id="notify-card">
+      <h2>Уведомления</h2>
+      <p class="muted">Приходят через бесплатное приложение ntfy. Установите его из Google Play или F-Droid, нажмите «+» и введите название канала ниже.</p>
+      <div class="field">
+        <label for="n-topic">Название канала</label>
+        <div class="cmd-row"><input class="input" id="n-topic" autocomplete="off" spellcheck="false" placeholder="например, mynissan-7f3k9q" style="text-transform:none;font-family:var(--f-body)"><button class="mini" id="n-gen" type="button">Придумать</button></div>
+        <span class="muted">Название работает как пароль: кто его знает, тот видит уведомления. Не делайте его простым.</span>
+      </div>
+      <div class="switch-row"><div><div>Зарядка дошла до лимита</div><div class="inline muted">лимит <input class="input" id="n-limit" type="number" min="50" max="100" aria-label="Лимит заряда, %"> %</div></div><button class="switch" id="n-onLimit" role="switch" aria-checked="true" aria-label="Зарядка дошла до лимита"></button></div>
+      <div class="switch-row"><div><div>Просел аккумулятор 12 В</div><div class="muted">ниже 11,9 В</div></div><button class="switch" id="n-onAux" role="switch" aria-checked="true" aria-label="Просел аккумулятор 12 В"></button></div>
+      <div class="switch-row"><div><div>Перегрелась батарея Leaf</div><div class="inline muted">выше <input class="input" id="n-heat" type="number" min="30" max="60" aria-label="Порог температуры, °C"> °C</div></div><button class="switch" id="n-onHeat" role="switch" aria-checked="true" aria-label="Перегрелась батарея Leaf"></button></div>
+      <div class="switch-row"><div><div>Вечером мало заряда</div><div class="inline muted">ниже <input class="input" id="n-low" type="number" min="10" max="90" aria-label="Порог заряда, %"> % в <input class="input" id="n-hour" type="number" min="0" max="23" aria-label="Час проверки"> ч</div></div><button class="switch" id="n-onEvening" role="switch" aria-checked="true" aria-label="Вечером мало заряда"></button></div>
+      <div class="switch-row"><div><div>Сроки из журнала</div><div class="muted">за неделю, за 3 дня, накануне и в день срока</div></div><button class="switch" id="n-onJournal" role="switch" aria-checked="true" aria-label="Сроки из журнала"></button></div>
+      <div class="switch-row"><div><div>Утренний прогноз запаса</div><div class="inline muted">в <input class="input" id="n-mhour" type="number" min="0" max="23" aria-label="Час утреннего прогноза"> ч, с учётом погоды</div></div><button class="switch" id="n-onMorning" role="switch" aria-checked="true" aria-label="Утренний прогноз запаса"></button></div>
+      <div class="field">
+        <label for="n-city">Город для прогноза погоды</label>
+        <div class="cmd-row"><input class="input" id="n-city" autocomplete="off" placeholder="Например, Москва" style="text-transform:none;font-family:var(--f-body)"><button class="mini" id="n-find" type="button">Найти</button></div>
+        <span class="muted" id="n-place"></span>
+      </div>
+      <div class="switch-row"><div><div>Тихие часы</div><div class="inline muted">с <input class="input" id="n-qfrom" type="number" min="0" max="23" aria-label="Начало тихих часов"> до <input class="input" id="n-qto" type="number" min="0" max="23" aria-label="Конец тихих часов"> ч</div><div class="muted">Обычные уведомления придут утром, срочные — сразу</div></div><button class="switch" id="n-onQuiet" role="switch" aria-checked="true" aria-label="Тихие часы"></button></div>
+      <details>
+        <summary class="muted" style="cursor:pointer">Свой сервер ntfy</summary>
+        <div class="field" style="margin-top:10px"><label for="n-server">Адрес сервера</label><input class="input" id="n-server" autocomplete="off" spellcheck="false" placeholder="https://ntfy.sh"></div>
+      </details>
+      <div class="btn-row"><button class="btn" id="n-save">Сохранить</button><button class="btn soft" id="n-test">Проверить</button></div>
+      <p class="muted" id="n-msg" aria-live="polite"></p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Адаптеры</h2><button class="mini acc" id="scan">Найти</button></div>
+      <div id="adapters"></div>
+      <div id="scan-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>Консоль</h2>
+      <p class="muted">Команды прямо адаптеру. Пропускаются только запросы на чтение, записать что-то в машину отсюда нельзя.</p>
+      <div class="seg" role="group" aria-label="Машина для консоли" id="con-car">
+        <button data-car="leaf">Leaf</button>
+        <button data-car="ariya">Ariya</button>
+      </div>
+      <div class="chips" id="quick">
+        <button class="chip" data-c="ATRV">ATRV</button>
+        <button class="chip" data-c="ATDP">ATDP</button>
+        <button class="chip" data-c="0100">0100</button>
+        <button class="chip" data-c="015B">015B</button>
+        <button class="chip" data-c="0902">0902</button>
+      </div>
+      <form class="cmd-row" id="con-form">
+        <input class="input" id="con-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Например, 2101" aria-label="Команда">
+        <button class="btn" id="con-send">Отправить</button>
+      </form>
+      <pre class="console-out" id="con-out"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Своё фото</h2>
+      <p class="muted">Можно заменить картинку на снимок вашей машины. Хранится только на этом телефоне.</p>
+      <div class="btn-row">
+        <label class="btn soft file-btn" for="photo">Выбрать фото<input type="file" id="photo" accept="image/*"></label>
+        <button class="btn soft" id="photo-clear">Убрать</button>
+      </div>
+    </div>
+
+    <div class="card"><h2>Мостик</h2><div class="list" id="bridge-info"></div></div>
+
+    <div class="card">
+      <h2>3D-модели</h2>
+      <p class="muted">Модели упрощены и перекрашены под ваши машины. Лицензия CC BY 4.0.</p>
+      <div class="list">
+        <div class="li"><span><a href="https://sketchfab.com/3d-models/nissan-leaf-mk1-ze0-2010-2017-27160fcef85548a580353a9178a6b6f1" style="color:var(--ink)">Nissan Leaf MK1 ZE0 2010–2017</a></span><span class="muted">Merc_TV</span></div>
+        <div class="li"><span><a href="https://sketchfab.com/3d-models/nissan-ariya-b0631f75173a4f48b331d770c86c1031" style="color:var(--ink)">Nissan Ariya</a></span><span class="muted">MattDoesBlender</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="ptr" id="ptr" aria-live="polite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span id="ptr-text">Потяните, чтобы обновить</span></div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+  <div class="sheet-in">
+    <div class="grab"></div>
+    <div class="sheet-head"><h2 id="sheet-title"></h2><button class="x" id="sheet-x" aria-label="Закрыть">✕</button></div>
+    <div id="sheet-body" style="display:flex;flex-direction:column;gap:14px"></div>
+  </div>
+</div>
+
+<div class="tabbar">
+  <nav aria-label="Разделы">
+    <a href="#home" data-screen="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg>Главная</a>
+    <a href="#history" data-screen="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-6 4 3 5-7 4 4"/><path d="M3 21h18"/></svg>История</a>
+    <a href="#trip" data-screen="trip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/></svg>Поездка</a>
+    <a href="#journal" data-screen="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>Журнал</a>
+    <a href="#settings" data-screen="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4 5.3 5.3"/></svg>Настройки</a>
+  </nav>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  /* ================= помощники ================= */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n, d = 0) => n.toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const nowSec = () => Math.floor(Date.now() / 1000);
+  const MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  const hm = (d) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  function when(ts) {
+    if (!ts) return "—";
+    const d = new Date(ts * 1000);
+    const diff = Math.round((dayStart(new Date()) - dayStart(d)) / 86400000);
+    if (diff === 0) return "сегодня " + hm(d);
+    if (diff === 1) return "вчера " + hm(d);
+    return d.getDate() + " " + MONTHS[d.getMonth()] + " " + hm(d);
+  }
+  function ago(ts) {
+    if (!ts) return "";
+    const s = nowSec() - ts;
+    if (s < 90) return "только что";
+    if (s < 3600) return Math.round(s / 60) + " мин назад";
+    if (s < 86400) return Math.round(s / 3600) + " ч назад";
+    return when(ts);
+  }
+  // даты журнала: «ГГГГ-ММ-ДД»
+  const isoDate = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const parseDate = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const daysUntil = (s) => { const d = parseDate(s); return d ? Math.round((d - dayStart(new Date())) / 86400000) : null; };
+  const dateLabel = (s) => { const d = parseDate(s); return d ? d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear() : ""; };
+  function plural(n, a, b, c) { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20) ? b : c; }
+  function dueText(days) {
+    if (days == null) return "";
+    if (days < 0) return "просрочено на " + -days + " " + plural(-days, "день", "дня", "дней");
+    if (days === 0) return "сегодня";
+    if (days === 1) return "завтра";
+    if (days < 60) return "через " + days + " " + plural(days, "день", "дня", "дней");
+    const mo = Math.round(days / 30);
+    return "через " + mo + " " + plural(mo, "месяц", "месяца", "месяцев");
+  }
+
+  const reduceMotion = (() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } })();
+  // лёгкий отклик вибрацией (Android)
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+  // число «добегает» от нуля до значения
+  function countTo(el, value, unit, animate) {
+    if (value == null) { el.innerHTML = "—"; el.dataset.v = ""; return; }
+    const html = (n) => Math.round(n) + "<small>" + unit + "</small>";
+    if (!animate || reduceMotion) { el.innerHTML = html(value); el.dataset.v = value; return; }
+    const t0 = performance.now(), dur = 900;
+    el.dataset.v = value;
+    const step = (t) => {
+      if (+el.dataset.v !== value) return;
+      const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      el.innerHTML = html(value * e);
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+  let introPending = true;
+
+  /* ================= машины ================= */
+  const META = {
+    leaf: {
+      name: "Leaf", img: "leaf.webp", nominal: 30, nominalAh: 79, cons: 15.5, port: "Type 1 и CHAdeMO",
+      spots: { port: [88.2, 47.5], aux: [81.5, 34.6], tyres: [52.0, 79.8], battery: [38.6, 76.7] }
+    },
+    ariya: {
+      name: "Ariya", img: "ariya.webp", nominal: 63, nominalAh: null, cons: 19.5, port: "лючок на переднем крыле",
+      spots: { port: [43.9, 42.3], aux: [16.4, 36.1], tyres: [38.4, 81.2], battery: [63.7, 80.3] }
+    }
+  };
+  const IDS = Object.keys(META);
+  const SPOT_NAMES = { port: "Порт зарядки", battery: "Тяговая батарея", aux: "Аккумулятор 12 В", tyres: "Шины" };
+
+  /* ================= расшифровка ответов ELM327 ================= */
+  const hexBytes = (s) => s.trim().split(/\s+/).filter((t) => /^[0-9A-Fa-f]{2}$/.test(t)).map((t) => parseInt(t, 16));
+  const u16 = (b, i) => (b[i] << 8) | b[i + 1];
+  const u24 = (b, i) => (b[i] << 16) | (b[i + 1] << 8) | b[i + 2];
+  const s32 = (b, i) => (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
+  function isoTp(raw, rx) {
+    if (!raw) return null;
+    const lines = raw.split(/[\n|]+/).map((l) => l.trim()).filter(Boolean);
+    let frames = lines.filter((l) => l.toUpperCase().startsWith(rx + " ")).map((l) => hexBytes(l.slice(rx.length)));
+    if (!frames.length) frames = lines.filter((l) => /^[0-9A-F]{2}( [0-9A-F]{2})+$/i.test(l)).map(hexBytes);
+    let out = [], total = null;
+    for (const f of frames) {
+      if (!f.length) continue;
+      const type = f[0] >> 4;
+      if (type === 0) return f.slice(1, 1 + (f[0] & 15));
+      if (type === 1) { total = ((f[0] & 15) << 8) | f[1]; out = f.slice(2); }
+      else if (type === 2 && total !== null) out = out.concat(f.slice(1));
+    }
+    return total !== null ? out.slice(0, total) : null;
+  }
+  // Leaf, блок батареи, ответ на 2101. Смещения по данным сообщества — сверим на машине.
+  function leafMain(raw) {
+    const p = isoTp(raw, "7BB");
+    if (!p || p[0] !== 0x61 || p[1] !== 0x01) return null;
+    const b = p.slice(2);
+    if (b.length < 37) return null;
+    const r = { soc: u24(b, 31) / 10000, hx: u16(b, 26) / 102.4, soh: u16(b, 28) / 100, ah: u24(b, 34) / 10000, packV: u16(b, 20) / 100, current: s32(b, 2) / 1024 };
+    if (!(r.soc > 0 && r.soc <= 100)) r.soc = null;
+    if (!(r.soh > 20 && r.soh <= 110)) r.soh = null;
+    if (!(r.hx > 10 && r.hx <= 110)) r.hx = null;
+    if (!(r.ah > 5 && r.ah < 120)) r.ah = null;
+    if (!(r.packV > 200 && r.packV < 450)) r.packV = null;
+    return r;
+  }
+  function leafCells(raw) {
+    const p = isoTp(raw, "7BB");
+    if (!p || p[0] !== 0x61 || p[1] !== 0x02) return null;
+    const b = p.slice(2), v = [];
+    for (let i = 0; i + 1 < b.length && v.length < 96; i += 2) { const mv = u16(b, i); if (mv > 2000 && mv < 4500) v.push(mv / 1000); }
+    return v.length >= 10 ? v : null;
+  }
+  function leafTemps(raw) {
+    const p = isoTp(raw, "7BB");
+    if (!p || p[0] !== 0x61 || p[1] !== 0x04) return null;
+    const b = p.slice(2), t = [];
+    for (const i of [2, 5, 8, 11]) {
+      if (i >= b.length) continue;
+      let x = b[i];
+      if (x === 0xff) continue;
+      if (x > 127) x -= 256;
+      if (x > -40 && x < 80) t.push(x);
+    }
+    return t.length ? t : null;
+  }
+  const leafBars = (soh) => soh == null ? null : soh >= 85 ? 12 : Math.max(0, 11 - Math.floor((85 - soh) / 6.25));
+  function obdPid(raw, pid) {
+    if (!raw) return null;
+    for (const l of raw.split(/[\n|]+/)) {
+      const t = l.trim().toUpperCase().split(/\s+/);
+      for (let k = 0; k < t.length - 2; k++) if (t[k] === "41" && t[k + 1] === pid) return t.slice(k + 2).filter((x) => /^[0-9A-F]{2}$/.test(x)).map((x) => parseInt(x, 16));
+    }
+    return null;
+  }
+  const ariyaSoc = (raw) => { const d = obdPid(raw, "5B"); return d && d.length ? d[0] * 100 / 255 : null; };
+
+  /* ================= история ================= */
+  function parseHist(car, text) {
+    const pts = [];
+    for (const line of text.split("\n")) {
+      const parts = line.split(";");
+      const t = +parts[0];
+      if (!t) continue;
+      let soc = null;
+      if (parts[2] === "1") soc = car === "leaf" ? ((leafMain(parts[3] || "") || {}).soc ?? null) : ariyaSoc(parts[3] || "");
+      pts.push({ t, soc, volt: parseFloat(parts[1]) || null });
+    }
+    return pts.sort((a, b) => a.t - b.t);
+  }
+  function findSessions(pts, capKwh) {
+    const s = pts.filter((p) => p.soc != null), out = [];
+    let cur = null;
+    const close = () => { if (cur && cur.to - cur.from >= 2) out.push(cur); cur = null; };
+    for (let i = 1; i < s.length; i++) {
+      const a = s[i - 1], b = s[i];
+      if (b.soc - a.soc > 0.05 && b.t - a.t < 45 * 60) { if (!cur) cur = { start: a.t, from: a.soc }; cur.end = b.t; cur.to = b.soc; }
+      else close();
+    }
+    if (cur && cur.to - cur.from >= 2) { cur.ongoing = nowSec() - cur.end < 20 * 60; out.push(cur); }
+    out.forEach((x) => { x.kwh = (x.to - x.from) / 100 * capKwh; x.rate = (x.to - x.from) / Math.max(0.1, (x.end - x.start) / 3600); });
+    return out.reverse();
+  }
+  // сколько процентов ушло (без учёта зарядок) начиная с момента from
+  function usedSince(pts, from) {
+    const s = pts.filter((p) => p.soc != null && p.t >= from);
+    let used = 0;
+    for (let i = 1; i < s.length; i++) { const d = s[i].soc - s[i - 1].soc; if (d < 0) used -= d; }
+    return s.length > 1 ? used : null;
+  }
+
+  /* ================= демо ================= */
+  function demoHist(car) {
+    const now = nowSec(), pts = [];
+    let soc = car === "leaf" ? 35 : 72;
+    for (let t = now - 7 * 86400; t <= now; t += 1200) {
+      const d = new Date(t * 1000), h = d.getHours() + d.getMinutes() / 60;
+      const drive = (h >= 8 && h < 9) || (h >= 18 && h < 19);
+      const charge = car === "leaf" ? (h >= 22 || h < 4) : (d.getDate() % 3 === 0 && h >= 20 && h < 24);
+      if (drive) soc -= car === "leaf" ? 4.6 : 2.4;
+      if (charge && soc < 80) soc = Math.min(80, soc + (car === "leaf" ? 3.9 : 4.4));
+      soc = Math.max(9, soc);
+      pts.push({ t, soc: Math.round(soc * 10) / 10, volt: car === "leaf" ? 12.6 : 12.4 });
+    }
+    return pts;
+  }
+  const demoRaw = (car) => car === "leaf"
+    ? { soh: 83, hx: 78.4, ah: 65.6, packV: 371.2, vmin: 3.912, vmax: 3.931, cellCount: 96, temps: [14, 15, 14, 13], aux: 12.6 }
+    : { soh: null, aux: 12.4 };
+  function demoHealth() {
+    const out = [], now = new Date();
+    for (let k = 12; k >= 0; k--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - k, 15);
+      const soh = 86.9 - (12 - k) * 0.32 + ((k * 7) % 5 - 2) * 0.06;
+      out.push({ t: Math.floor(d.getTime() / 1000), soh, ah: soh / 100 * 79 });
+    }
+    return out;
+  }
+
+  /* ================= состояние ================= */
+  let current = store.get("car", "leaf"); if (!META[current]) current = "leaf";
+  let period = 1, live = false, bridge = null, busy = false, scanResults = null;
+  let consoleCar = current;
+  const hist = { leaf: [], ariya: [] };
+  const view = {};
+  const photos = {};
+  let journal = [];
+  let jFilter = "all";
+  let ncfg = { server: "https://ntfy.sh", topic: "", onLimit: true, onAux: true, onEvening: true, onJournal: true, onHeat: true, onMorning: true, onQuiet: true, limit: 80, lowSoc: 40, eveningHour: 21, heatLimit: 40, morningHour: 7, quietFrom: 23, quietTo: 7, hasLoc: false, lat: 0, lon: 0, city: "" };
+  let foundPlace = null;
+  let health = [];
+  const SWITCHES = ["onLimit", "onAux", "onHeat", "onEvening", "onJournal", "onMorning", "onQuiet"];
+  const TEMPS = [20, 10, 0, -10, -20];
+  const monthTemp = [-10, -10, 0, 10, 10, 20, 20, 20, 10, 10, 0, -10][new Date().getMonth()];
+  const trip = store.get("trip", { dist: 40, rt: false, temp: monthTemp, speed: "city", clim: true });
+
+  function buildView(car) {
+    const m = META[car];
+    let v;
+    if (live) {
+      const st = bridge.cars[car] || {};
+      const raw = st.raw || {};
+      v = { adapter: !!st.addr, addr: st.addr, ok: st.ok, seen: st.seen, awake: st.awake, lastAwake: st.lastAwake, lastPoll: st.lastPoll, err: st.err, aux: parseFloat(st.volt) || null };
+      if (car === "leaf") {
+        Object.assign(v, leafMain(raw["2101"]) || {});
+        const cells = leafCells(raw["2102"]);
+        if (cells) { v.vmin = Math.min(...cells); v.vmax = Math.max(...cells); v.cellCount = cells.length; }
+        v.temps = leafTemps(raw["2104"]);
+      } else v.soc = ariyaSoc(raw["015B"]);
+    } else {
+      v = Object.assign({ adapter: true, ok: true, seen: true, awake: true, lastAwake: nowSec() - 180, lastPoll: nowSec() - 180 }, demoRaw(car));
+      const h = hist[car];
+      v.soc = h.length ? h[h.length - 1].soc : null;
+    }
+    if (v.soh == null && v.ah && m.nominalAh) v.soh = v.ah / m.nominalAh * 100;
+    v.temp = v.temps && v.temps.length ? Math.round(v.temps.reduce((a, b) => a + b, 0) / v.temps.length) : null;
+    v.bars = car === "leaf" ? leafBars(v.soh) : null;
+    v.capKwh = m.nominal * (v.soh != null ? v.soh / 100 : 1);
+    if (v.soc == null) { const h = hist[car].filter((p) => p.soc != null); if (h.length) v.soc = h[h.length - 1].soc; }
+    v.sess = findSessions(hist[car], v.capKwh);
+    v.charging = !!(v.sess[0] && v.sess[0].ongoing && v.awake);
+    v.rangeKm = v.soc != null ? v.capKwh * v.soc / 100 / m.cons * 100 : null;
+    v.today = usedSince(hist[car], dayStart(new Date()).getTime() / 1000);
+    return v;
+  }
+  const rebuild = () => IDS.forEach((c) => { view[c] = buildView(c); });
+
+
+  /* ================= 3D-модели =================
+     Модели грузятся с мостика (leaf.glb, ariya.glb), библиотека three.js — из интернета.
+     Если что-то не получилось, остаётся фото машины. */
+  const MODEL3D = {
+    leaf: { url: "leaf.glb", bytes: 2304420, yaw0: 0, scale: 1,
+      // точки на модели: [x, y, z, нормаль x, y, z] в метрах, перед машины смотрит в +Z
+      anchors: { port: [[0, 0.80, 2.28, 0, 0.2, 1]], aux: [[0, 1.0, 1.65, 0, 1, 0.3]],
+        battery: [[0.86, 0.32, 0.1, 1, 0, 0], [-0.86, 0.32, 0.1, -1, 0, 0]], tyres: [[0.88, 0.33, 1.40, 1, 0, 0], [-0.88, 0.33, 1.40, -1, 0, 0]] } },
+    ariya: { url: "ariya.glb", bytes: 1623088, yaw0: Math.PI / 2, scale: 0.01,
+      anchors: { port: [[0.9, 0.95, 1.10, 1, 0, 0]], aux: [[0, 1.08, 1.60, 0, 1, 0.3]],
+        battery: [[0.92, 0.38, 0, 1, 0, 0], [-0.92, 0.38, 0, -1, 0, 0]], tyres: [[0.93, 0.37, 1.39, 1, 0, 0], [-0.93, 0.37, 1.39, -1, 0, 0]] } }
+  };
+  const V3 = { T: null, ok: {}, failed: {}, cars: {}, job: {}, act: {}, tries: {}, yaw: { leaf: 0.95, ariya: 0.95 }, vel: 0, need: false, raf: 0, active: false, dragging: false };
+
+  function loadScript(src, ms) {
+    return new Promise((ok, bad) => {
+      const s = document.createElement("script"); s.src = src;
+      const t = setTimeout(() => { s.onload = s.onerror = null; bad(new Error("timeout")); }, ms);
+      s.onload = () => { clearTimeout(t); ok(); };
+      s.onerror = () => { clearTimeout(t); s.remove(); bad(new Error("load")); };
+      document.head.appendChild(s);
+    });
+  }
+  // three.js: сначала с мостика (если файлы туда залиты), потом с двух CDN — какой ответит
+  const THREE_SRC = [
+    { base: "", dirs: ["", "", ""], ms: 6000 },
+    { base: "https://cdn.jsdelivr.net/npm/three@0.147.0/", dirs: ["build/", "examples/js/loaders/", "examples/js/environments/"], ms: 15000 },
+    { base: "https://unpkg.com/three@0.147.0/", dirs: ["build/", "examples/js/loaders/", "examples/js/environments/"], ms: 15000 }
+  ];
+  function ensureThree() {
+    if (V3.libPromise) return V3.libPromise;
+    const p = (async () => {
+      let src = null;
+      for (const s of THREE_SRC) {
+        try {
+          if (!window.THREE) await loadScript(s.base + s.dirs[0] + "three.min.js", s.ms);
+          if (!window.THREE.GLTFLoader) await loadScript(s.base + s.dirs[1] + "GLTFLoader.js", s.ms);
+          if (window.THREE.GLTFLoader) { src = s; break; }
+        } catch (e) {}
+      }
+      const T = window.THREE;
+      if (!src || !T || !T.GLTFLoader) throw new Error("three.js не загрузился");
+      if (!T.RoomEnvironment) { try { await loadScript(src.base + src.dirs[2] + "RoomEnvironment.js", src.ms); } catch (e) {} }
+      if (!V3.renderer) {
+        try { initRenderer(T); } catch (e) { V3.gl = false; throw e; }
+      }
+      return T;
+    })();
+    V3.libPromise = p;
+    p.catch(() => { if (V3.libPromise === p) V3.libPromise = null; });   // при следующей попытке грузим заново
+    return p;
+  }
+  function hasWebGL() {
+    try { const c = document.createElement("canvas"); return !!(window.WebGLRenderingContext && (c.getContext("webgl2") || c.getContext("webgl"))); }
+    catch (e) { return false; }
+  }
+  function initRenderer(T) {
+    if (T.ColorManagement) T.ColorManagement.legacyMode = false;   // цвета из палитры без осветления
+    const canvas = document.createElement("canvas");
+    canvas.className = "car3d";
+    const r = new T.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "low-power" });
+    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    r.outputEncoding = T.sRGBEncoding;
+    r.toneMapping = T.NoToneMapping;
+    canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); }, false);
+    canvas.addEventListener("webglcontextrestored", () => { V3.w = 0; kick(); }, false);
+    const scene = new T.Scene();
+    if (T.RoomEnvironment) {
+      const pm = new T.PMREMGenerator(r);
+      scene.environment = pm.fromScene(new T.RoomEnvironment(), 0.04).texture;
+    }
+    scene.add(new T.HemisphereLight(0xffffff, 0x0e1116, 0.4));
+    const key = new T.DirectionalLight(0xfff6ee, 2.0); key.position.set(4, 6, 6); scene.add(key);
+    const fill = new T.DirectionalLight(0xffffff, 0.6); fill.position.set(-6, 3, 2); scene.add(fill);
+    const rim = new T.DirectionalLight(0xffffff, 0.8); rim.position.set(-3, 4, -7); scene.add(rim);
+    const cam = new T.PerspectiveCamera(30, 1.6, 0.1, 100);
+    Object.assign(V3, { T, renderer: r, scene, camera: cam, canvas });
+  }
+  // мягкая тень под машиной
+  function shadowMesh(T, size) {
+    const c = document.createElement("canvas"); c.width = c.height = 128;
+    const g = c.getContext("2d"), gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+    gr.addColorStop(0, "rgba(0,0,0,0.85)"); gr.addColorStop(0.6, "rgba(0,0,0,0.45)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    const m = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.y = 0.004;
+    m.scale.set(size.x * 1.45, size.z * 1.2, 1);
+    return m;
+  }
+  // У модели Leaf одно колесо-заготовка в центре: ставим копии в четыре арки
+  function fixLeaf(T, root) {
+    const w = root.getObjectByName("fmleaf_wheels"), t = root.getObjectByName("fmleaf_tires"), top = root.getObjectByName("Sketchfab_model");
+    if (!w || !t || !top) return;
+    const q = top.quaternion.clone();
+    [[0.735, 1.40, 1], [-0.735, 1.40, -1], [0.735, -1.30, 1], [-0.735, -1.30, -1]].forEach(([x, z, s]) => {
+      const g = new T.Group(); g.position.set(x, 0.33, z); g.scale.set(s, 1, 1);
+      const inner = new T.Group(); inner.quaternion.copy(q); inner.add(w.clone(true), t.clone(true));
+      g.add(inner); root.add(g);
+    });
+    w.parent.remove(w); t.parent.remove(t);
+  }
+  // Делит деталь модели на две по положению треугольников (в метрах, перед машины в +Z).
+  // У Leaf так отделяются панель крыши, стекло фар и отражатели фар и фонарей.
+  function splitMesh(T, root, matName, test, newMat, inGroup) {
+    root.updateMatrixWorld(true);
+    const targets = [];
+    const under = (o, name) => { for (let p = o.parent; p; p = p.parent) if (p.name === name) return true; return false; };
+    root.traverse((o) => { if (o.isMesh && o.material && o.material.name === matName && (!inGroup || under(o, inGroup))) targets.push(o); });
+    const a = new T.Vector3(), b = new T.Vector3(), c = new T.Vector3(), e1 = new T.Vector3(), e2 = new T.Vector3();
+    targets.forEach((mesh) => {
+      const g = mesh.geometry, pos = g.attributes.position, idx = g.index;
+      if (!idx) return;
+      const hit = [], rest = [];
+      for (let i = 0; i < idx.count; i += 3) {
+        const i0 = idx.getX(i), i1 = idx.getX(i + 1), i2 = idx.getX(i + 2);
+        a.fromBufferAttribute(pos, i0).applyMatrix4(mesh.matrixWorld);
+        b.fromBufferAttribute(pos, i1).applyMatrix4(mesh.matrixWorld);
+        c.fromBufferAttribute(pos, i2).applyMatrix4(mesh.matrixWorld);
+        e1.subVectors(b, a); e2.subVectors(c, a); e1.cross(e2).normalize();
+        (test((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, (a.z + b.z + c.z) / 3, Math.abs(e1.y)) ? hit : rest).push(i0, i1, i2);
+      }
+      if (!hit.length) return;
+      g.setIndex(rest);
+      const rg = new T.BufferGeometry();
+      Object.keys(g.attributes).forEach((k) => rg.setAttribute(k, g.attributes[k]));
+      rg.setIndex(hit);
+      const m = new T.Mesh(rg, newMat);
+      m.position.copy(mesh.position); m.quaternion.copy(mesh.quaternion); m.scale.copy(mesh.scale);
+      m.renderOrder = mesh.renderOrder;
+      mesh.parent.add(m);
+    });
+  }
+  // MeshPhysical нужен только для лака; остальным хватает MeshStandard — шейдер проще, первый кадр быстрее
+  function mat(T, o) { return o.clearcoat ? new T.MeshPhysicalMaterial(o) : new T.MeshStandardMaterial(o); }
+  // Цвета: Leaf чёрный с белой крышей, Ariya медная с чёрной крышей
+  function paintFor(T, car, old, vc) {
+    const n = (old && old.name) || "";
+    const P = (color, o) => { const m = mat(T, Object.assign({ color, metalness: 0.2, roughness: 0.5, envMapIntensity: 0.6 }, o || {})); m.name = n; if (vc) m.vertexColors = true; return m; };
+    const paint = (color, metal) => P(color, { metalness: metal == null ? 0.35 : metal, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.06, envMapIntensity: 0.9 });
+    const glass = () => P(0x020304, { metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.9, envMapIntensity: 0.35 });
+    const chrome = () => P(0xd6dbe0, { metalness: 1, roughness: 0.18 });
+    const lens = () => P(0xdde3ea, { metalness: 0.2, roughness: 0.08, transparent: true, opacity: 0.85 });
+    const red = () => P(0x9a0f17, { roughness: 0.25, emissive: 0x2a0204 });
+    const amber = () => P(0xc06a12, { roughness: 0.3 });
+    const plastic = (c) => P(c || 0x030303, { roughness: 0.5, envMapIntensity: 0.1 });
+    const tire = () => P(0x0b0b0b, { roughness: 0.9, envMapIntensity: 0.2 });
+    // глубокий чёрный: почти без отражений светлой «студии», только чёткий блик лака
+    const deepBlack = () => P(0x020202, { metalness: 0.15, roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.05, envMapIntensity: 0.12 });
+    const blackTrim = () => P(0x030303, { metalness: 0.1, roughness: 0.45, envMapIntensity: 0.1 });
+    if (car === "leaf") {
+      if (n === "am5eunew1") return deepBlack();
+      if (/glass/.test(n)) return glass();
+      if (/tire/.test(n)) return tire();
+      if (n === "am5eunew1_mirror") return P(0x0e1012, { metalness: 1, roughness: 0.05, envMapIntensity: 0.6 });
+      // у чёрной версии хром тёмный
+      if (/chrome|badges/.test(n)) return P(0x16171a, { metalness: 0.9, roughness: 0.25, envMapIntensity: 0.4 });
+      if (n === "am5eunew1_grey" || /wheels/.test(n)) return P(0x080809, { metalness: 0.5, roughness: 0.3, envMapIntensity: 0.25 });
+      if (/rearlights_light|brakeglow/.test(n)) return red();
+      if (/orange/.test(n)) return amber();
+      // фары и повторители — по точным названиям, чтобы отделка окон («raceparts_light») не стала светлой
+      if (/frontlights|foglights|reverselights|^am5eunew1_indicator_[LR]$/.test(n)) return lens();
+      return blackTrim();
+    }
+    if (n === "Body") return P(0xa87c66, { metalness: 0.6, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1 });
+    if (n === "Roof" || n === "Paint_Black") return deepBlack();
+    if (n === "Glass_Privacy" || n === "Glass_Roof") return glass();
+    if (n === "Chrome_Black") return P(0x0a0a0b, { metalness: 0.7, roughness: 0.25, envMapIntensity: 0.25 });
+    if (n === "Plate_White") return P(0xe6e8ea, { roughness: 0.4 });
+    if (n === "Glass_Mirror" || /Chrome/.test(n)) return chrome();
+    if (n === "Rubber_Tires") return tire();
+    if (n === "White_Shiney_Cast") return P(0x3b4247, { metalness: 0.75, roughness: 0.28 });
+    if (n === "Powder_Coat_Silver") return P(0x8a9097, { metalness: 0.8, roughness: 0.3 });
+    if (n === "Paint_Silver_Dark_Matte") return P(0x6b7076, { metalness: 0.6, roughness: 0.5 });
+    if (n === "Paint_White_Gloss") return P(0xe9ecef, { roughness: 0.2 });
+    if (/Red/.test(n)) return red();
+    if (n === "Acrylic_Dark") return P(0x15171a, { roughness: 0.15 });
+    if (/Acrylic|G01_2_Lights/.test(n)) return lens();
+    if (n === "Paint_Grey" || n === "Powder_Coat_Grey") return P(0x3a3e44, { metalness: 0.4, roughness: 0.5 });
+    return plastic();
+  }
+  function turntable(T, radius) {
+    const g = new T.Group();
+    const flat = (geo, color, opacity) => {
+      const m = new T.Mesh(geo, new T.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: T.DoubleSide }));
+      m.rotation.x = -Math.PI / 2; m.position.y = 0.006; return m;
+    };
+    g.add(flat(new T.RingGeometry(radius - 0.008, radius + 0.008, 160), 0x3a4552, 0.9));
+    // дуга зарядки: заполняется до текущего процента и пульсирует, пока идёт зарядка
+    const fill = new T.Mesh(new T.BufferGeometry(), new T.MeshBasicMaterial({ color: 0x5ee6c8, transparent: true, opacity: 0.8, depthWrite: false, side: T.DoubleSide }));
+    fill.rotation.x = -Math.PI / 2; fill.position.y = 0.007; fill.visible = false;
+    g.add(fill);
+    const dot = new T.Group();
+    dot.add(flat(new T.CircleGeometry(0.05, 32), 0x5ee6c8, 1));
+    g.add(dot);
+    g.userData = { dot, radius, fill, pct: -1 };
+    return g;
+  }
+  const pause = () => new Promise((r) => setTimeout(r, 0));
+  function loadCar(car) {
+    if (V3.cars[car]) return V3.cars[car].promise;
+    const T = V3.T || window.THREE, cfg = MODEL3D[car], rec = { pct: 0 };
+    // на мостике лежит leaf.glb (или сжатый leaf.glb.gz); в окне предпросмотра тот же файл называется leaf-glb.wasm
+    const urls = [cfg.url, cfg.url.replace(".glb", "-glb.wasm")];
+    let notFound = 0;
+    const onProg = (e) => {
+      V3.act[car] = performance.now();
+      rec.pct = Math.min(99, Math.round(100 * e.loaded / (cfg.bytes || e.total || 1)));
+      if (car === current) { const el = $("car-pct"); if (el) el.textContent = rec.pct + "%"; }
+    };
+    const is404 = (err) => !!err && ((err.response && err.response.status === 404) || / 404/.test(String(err.message || "")));
+    const loadAny = (i, ok, bad) => new T.GLTFLoader().load(urls[i], ok, onProg, (err) => {
+      if (is404(err)) notFound++;
+      if (i + 1 < urls.length) loadAny(i + 1, ok, bad);
+      else { const e = err instanceof Error ? err : new Error("model"); e.missing = notFound === urls.length; bad(e); }
+    });
+    const step = async () => { V3.act[car] = performance.now(); await pause(); };
+    rec.promise = new Promise((ok, bad) => loadAny(0, ok, bad)).then(async (g) => {
+      const root = g.scene;
+      if (car === "leaf") fixLeaf(T, root);
+      // один материал на название детали, а не на каждый кусок модели
+      const cache = {};
+      root.traverse((o) => {
+        if (!o.isMesh) return;
+        const vc = !!(o.geometry && o.geometry.attributes.color), key = ((o.material && o.material.name) || "") + (vc ? "|vc" : "");
+        o.material = cache[key] || (cache[key] = paintFor(T, car, o.material, vc));
+      });
+      await step();
+      if (car === "leaf") {
+        const mk = (o) => { const m = mat(T, o); m.vertexColors = true; return m; };
+        // белая только панель крыши: плоский участок между швами, от лобового до заднего стекла
+        splitMesh(T, root, "am5eunew1", (x, y, z, ny) => y > 1.40 && ny > 0.8 && Math.abs(x) < 0.47 && z > -1.40 && z < 0.50,
+          mk({ color: 0xf3f3f1, metalness: 0.05, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.6 }));
+        await step();
+        // стекло фар прозрачное (в модели оно общее со стёклами окон)
+        splitMesh(T, root, "am5eunew1_glass", (x, y, z) => z > 1.70 && y < 1.12,
+          mk({ color: 0xe6edf3, metalness: 0, roughness: 0.03, transparent: true, opacity: 0.28, envMapIntensity: 1, depthWrite: false }));
+        // стекло задних фонарей — красное полупрозрачное (тоже общее со стёклами окон)
+        splitMesh(T, root, "am5eunew1_glass", (x, y, z) => z < -1.55 && Math.abs(x) > 0.45 && y < 1.32,
+          mk({ color: 0xb3121c, emissive: 0x300306, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.6, envMapIntensity: 0.8, depthWrite: false }), "fmleaf_body");
+        await step();
+        // внутренность фонаря в модели названа «wheels2» — делаем красной
+        splitMesh(T, root, "am5eunew1_wheels2", (x, y, z) => z < -1.55,
+          mk({ color: 0x8c1018, emissive: 0x220205, metalness: 0.2, roughness: 0.3 }));
+        // отражатели фар и фонарей — светлый хром (в модели они общие с тёмной отделкой)
+        splitMesh(T, root, "am5eunew1_chrome", (x, y, z) => (z > 1.65 && y > 0.7 && y < 1.12) || (z < -1.55 && y > 0.8),
+          mk({ color: 0xdfe3e8, metalness: 1, roughness: 0.12, envMapIntensity: 1 }));
+      }
+      await step();
+      const fix = new T.Group();
+      fix.add(root); fix.rotation.y = cfg.yaw0; fix.scale.setScalar(cfg.scale);
+      fix.updateMatrixWorld(true);
+      const box = new T.Box3().setFromObject(fix);
+      const c = box.getCenter(new T.Vector3());
+      rec.offset = new T.Vector3(c.x, box.min.y, c.z);
+      rec.size = box.getSize(new T.Vector3());
+      fix.position.set(-rec.offset.x, -rec.offset.y, -rec.offset.z);
+      const turn = new T.Group();
+      turn.add(fix);
+      turn.add(shadowMesh(T, rec.size));
+      rec.turn = turn;
+      rec.radius = Math.hypot(rec.size.x, rec.size.z) / 2 + 0.12;
+      rec.ring = turntable(T, rec.radius);
+      return rec;
+    });
+    rec.promise.catch(() => { if (V3.cars[car] === rec) delete V3.cars[car]; });   // следующая попытка скачает заново
+    V3.cars[car] = rec;
+    return rec.promise;
+  }
+  // Шейдеры собираем заранее, пока на экране индикатор загрузки, — иначе первый кадр подвисает
+  function warm(car) {
+    return new Promise((ok) => setTimeout(() => {
+      const rec = V3.cars[car];
+      try {
+        const sc = V3.scene, added = !rec.turn.parent;
+        if (added) { sc.add(rec.turn); sc.add(rec.ring); }
+        V3.renderer.compile(sc, V3.camera);
+        if (added) { sc.remove(rec.turn); sc.remove(rec.ring); }
+      } catch (e) {}
+      ok();
+    }, 30));
+  }
+  const PERMANENT = { missing: 1, nogl: 1 };   // файла модели нет на мостике или телефон не умеет WebGL — показываем фото
+  function try3D(car) {
+    if (V3.ok[car]) return Promise.resolve(true);
+    if (V3.job[car]) return V3.job[car];
+    if (V3.gl === undefined) V3.gl = hasWebGL();
+    if (!V3.gl) { V3.failed[car] = "nogl"; return Promise.resolve(false); }
+    delete V3.failed[car];
+    let stage = 1, watch = 0;
+    const job = new Promise((done) => {
+      const end = () => { clearInterval(watch); if (V3.job[car] === job) V3.job[car] = null; done(!!V3.ok[car]); };
+      const win = () => {
+        if (V3.ok[car]) return end();
+        V3.ok[car] = true; delete V3.failed[car]; V3.tries[car] = 0;
+        end();
+        if (car === current) renderCar();
+        preloadOther(car);
+      };
+      const fail = (why) => {
+        if (V3.ok[car]) return end();
+        V3.failed[car] = why;
+        end();
+        if (car === current) renderCar();
+        if (!PERMANENT[why]) retryLater(car);
+      };
+      // модель качается, но 20 секунд ни одного нового байта — считаем, что связь пропала
+      watch = setInterval(() => { if (stage === 2 && performance.now() - V3.act[car] > 20000) fail("slow"); }, 1000);
+      ensureThree()
+        .then((T) => { V3.T = T; stage = 2; V3.act[car] = performance.now(); return loadCar(car); })
+        .then(() => warm(car))
+        .then(win, (e) => fail(V3.gl === false ? "nogl" : e && e.missing ? "missing" : "error"));
+      // если «долго» сработало раньше, а модель всё же догрузилась — просто показываем её
+    });
+    V3.job[car] = job;
+    return job;
+  }
+  function retryLater(car) {
+    const n = V3.tries[car] = (V3.tries[car] || 0) + 1;
+    if (n > 4) return;
+    clearTimeout((V3.retryT || (V3.retryT = {}))[car]);
+    V3.retryT[car] = setTimeout(() => retryNow(car), [4000, 10000, 30000, 60000][n - 1]);
+  }
+  function retryNow(car, all) {
+    if (V3.ok[car] || V3.job[car]) return;
+    if (V3.failed[car] && PERMANENT[V3.failed[car]] && !(all && V3.failed[car] === "missing")) return;
+    delete V3.failed[car];
+    if (car === current) renderCar(); else try3D(car);
+  }
+  // пока смотрим первую машину, тихо догружаем вторую — переключение будет мгновенным
+  function preloadOther(car) {
+    const other = IDS.find((x) => x !== car);
+    if (!other || V3.ok[other] || V3.job[other] || V3.failed[other]) return;
+    const go = () => { if (!V3.ok[other] && !V3.job[other]) try3D(other); };
+    setTimeout(() => { if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 3000 }); else go(); }, 2500);
+  }
+  window.addEventListener("online", () => IDS.forEach((c) => { V3.tries[c] = 0; retryNow(c); }));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && V3.active) { V3.w = 0; kick(); } });
+  // камера смотрит чуть сверху, круг занимает почти всю ширину
+  function frameCamera() {
+    const rec = V3.cars[current];
+    if (!rec || !rec.radius) return;
+    const cam = V3.camera, r = rec.radius;
+    const hHalf = Math.atan(Math.tan((cam.fov * Math.PI / 180) / 2) * cam.aspect);
+    const dist = (r * 1.06) / Math.sin(hHalf);
+    const elev = 0.17;   // наклон камеры, рад: почти на уровне глаз
+    cam.position.set(0, dist * Math.sin(elev) + 0.2, dist * Math.cos(elev));
+    cam.lookAt(0, rec.size.y * 0.42, 0);
+  }
+  function sizeCanvas() {
+    if (!V3.renderer) return;
+    const w = V3.canvas.parentElement ? V3.canvas.parentElement.clientWidth : 360;
+    const h = Math.round(w / 1.6);
+    if (w && (V3.w !== w)) { V3.w = w; V3.renderer.setSize(w, h, false); V3.camera.aspect = w / h; V3.camera.updateProjectionMatrix(); frameCamera(); }
+  }
+  function show3D(wrap, spotsHTML) {
+    const rec = V3.cars[current];
+    wrap.className = "car-wrap three";
+    wrap.innerHTML = spotsHTML;
+    wrap.insertBefore(V3.canvas, wrap.firstChild);
+    if (V3.shown && V3.shown !== rec.turn) { V3.scene.remove(V3.shown); V3.scene.remove(V3.shownRing); }
+    if (V3.shown !== rec.turn) { V3.scene.add(rec.turn); V3.scene.add(rec.ring); }
+    V3.shown = rec.turn; V3.shownRing = rec.ring;
+    // при первом показе машина делает небольшой поворот, как будто показывает себя
+    if (!rec.introDone && !reduceMotion) { rec.introDone = true; rec.intro = { t0: performance.now(), from: V3.yaw[current] + 1.1, to: V3.yaw[current] }; V3.yaw[current] += 1.1; }
+    V3.active = true;
+    $("stage").classList.add("is3d");
+    V3.w = 0; sizeCanvas(); frameCamera();
+    updateChargeRing();
+    kick();
+  }
+  const anchorVec = { p: null, n: null };
+  function placeSpots(rec) {
+    const T = V3.T, cfg = MODEL3D[current], w = V3.canvas.clientWidth, h = V3.canvas.clientHeight;
+    if (!anchorVec.p) { anchorVec.p = new T.Vector3(); anchorVec.n = new T.Vector3(); anchorVec.c = new T.Vector3(); }
+    const yaw = V3.yaw[current], axis = new T.Vector3(0, 1, 0);
+    document.querySelectorAll("#car-wrap .spot").forEach((b) => {
+      const list = cfg.anchors[b.dataset.spot] || [];
+      let shown = false;
+      for (const a of list) {
+        const p = anchorVec.p.set(a[0] - rec.offset.x, a[1] - rec.offset.y, a[2] - rec.offset.z).applyAxisAngle(axis, yaw);
+        const n = anchorVec.n.set(a[3], a[4], a[5]).applyAxisAngle(axis, yaw);
+        const toCam = anchorVec.c.copy(V3.camera.position).sub(p).normalize();
+        if (n.normalize().dot(toCam) < 0.35) continue;
+        p.project(V3.camera);
+        b.style.left = ((p.x + 1) / 2 * w).toFixed(1) + "px";
+        b.style.top = ((1 - p.y) / 2 * h).toFixed(1) + "px";
+        shown = true; break;
+      }
+      b.classList.toggle("off", !shown);
+    });
+  }
+  function ringTo(angle) {
+    $("ring-dot").style.transform = "translate(" + (180 + 170 * Math.sin(angle)).toFixed(1) + "px, " + (30 + 22 * Math.cos(angle)).toFixed(1) + "px)";
+  }
+  function frame() {
+    V3.raf = 0;
+    const rec = V3.cars[current];
+    if (!V3.active || !rec || !rec.turn) return;
+    const now = performance.now();
+    if (rec.intro) {
+      const k = Math.min(1, (now - rec.intro.t0) / 1500), e = 1 - Math.pow(1 - k, 3);
+      V3.yaw[current] = rec.intro.from + (rec.intro.to - rec.intro.from) * e;
+      if (k >= 1) rec.intro = null;
+      V3.need = true;
+    }
+    if (!V3.dragging && Math.abs(V3.vel) > 0.0004) { V3.yaw[current] += V3.vel; V3.vel *= 0.93; V3.need = true; }
+    if (V3.pulse && now - (V3.lastPulse || 0) > 33) {   // не чаще ~30 кадров в секунду, бережём батарею
+      V3.lastPulse = now; rec.ring.userData.fill.material.opacity = 0.5 + 0.4 * Math.sin(now / 420); V3.need = true;
+    }
+    // щелчок вибрацией примерно на каждые 30° поворота
+    if (V3.dragging && V3.tickYaw != null && Math.abs(V3.yaw[current] - V3.tickYaw) > Math.PI / 6) { V3.tickYaw = V3.yaw[current]; buzz(4); }
+    if (V3.need) {
+      sizeCanvas();
+      rec.turn.rotation.y = V3.yaw[current];
+      V3.renderer.render(V3.scene, V3.camera);
+      placeSpots(rec);
+      const ud = rec.ring.userData, a = V3.yaw[current] - 0.95;
+      ud.dot.position.set(ud.radius * Math.sin(a), 0, ud.radius * Math.cos(a));
+      V3.need = false;
+    }
+    const homeVisible = !$("home").hidden;
+    if (V3.dragging || Math.abs(V3.vel) > 0.0004 || rec.intro || (V3.pulse && homeVisible)) V3.raf = requestAnimationFrame(frame);
+  }
+  function kick() { V3.need = true; if (!V3.raf) V3.raf = requestAnimationFrame(frame); }
+  function updateChargeRing() {
+    const rec = V3.cars[current];
+    if (!V3.active || !rec || !rec.ring) return;
+    const v = view[current], ud = rec.ring.userData;
+    const on = !!(v.charging && v.soc != null);
+    ud.fill.visible = on;
+    if (on) {
+      const pct = Math.round(v.soc);
+      if (ud.pct !== pct) {
+        ud.fill.geometry.dispose();
+        ud.fill.geometry = new V3.T.RingGeometry(ud.radius - 0.03, ud.radius + 0.03, 160, 1, -Math.PI / 2, Math.PI * 2 * pct / 100);
+        ud.pct = pct;
+      }
+    }
+    V3.pulse = on && !reduceMotion;
+    kick();
+  }
+  window.addEventListener("resize", () => { if (V3.active) { V3.w = 0; kick(); } });
+
+  /* ================= главная ================= */
+  function renderCar() {
+    const c = META[current], v = view[current];
+    const photo = photos[current] || store.get("photo-" + current, null);
+    const wrap = $("car-wrap");
+    const spots = Object.keys(c.spots).map((k) => '<button class="spot' + (k === "port" && v.charging ? " live" : "") + '" data-spot="' + k +
+      '" style="left:' + c.spots[k][0] + "%;top:" + c.spots[k][1] + '%" aria-label="' + SPOT_NAMES[k] + '" aria-expanded="false"></button>').join("");
+    V3.active = false;
+    $("stage").classList.remove("is3d");
+    if (photo) { wrap.className = "car-wrap " + current; wrap.innerHTML = '<img class="custom" src="' + photo + '" alt="' + c.name + '">'; }
+    else if (V3.ok[current]) show3D(wrap, spots);
+    else if (V3.gl === false || PERMANENT[V3.failed[current]]) {
+      wrap.className = "car-wrap " + current;
+      wrap.innerHTML = '<span class="glow"></span><img src="' + c.img + '" alt="' + c.name + '">' + spots;
+    } else {
+      const f = V3.failed[current], state = (f ? "fail-" : "load-") + current;
+      $("stage").classList.add("is3d");
+      if (wrap.dataset.state !== state) {   // не перерисовываем индикатор на каждом обновлении данных
+        const rec = V3.cars[current], pct = rec && rec.pct ? rec.pct + "%" : "";
+        wrap.className = "car-wrap loading";
+        wrap.innerHTML = '<div class="car-load"><span class="plate"></span>' + (f
+          ? '<button class="retry" type="button" data-retry aria-label="Загрузить 3D-модель ещё раз"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="cl-t">3D не загрузилась</span>'
+          : '<span class="ld" role="progressbar" aria-label="Загружаю 3D-модель"><b class="num" id="car-pct">' + pct + '</b></span>') + '</div>';
+        wrap.dataset.state = state;
+      }
+      if (!f) try3D(current);
+    }
+    if (wrap.className !== "car-wrap loading") delete wrap.dataset.state;
+    document.querySelectorAll("#dots i").forEach((d, i) => d.classList.toggle("on", IDS[i] === current));
+  }
+  function statusText(v) {
+    if (live && !v.adapter) return ["Адаптер не выбран", ""];
+    if (v.charging) {
+      const s = v.sess[0], lim = ncfg.limit || 80;
+      const left = v.soc != null && v.soc < lim ? (lim - v.soc) / s.rate : null;
+      return ['<span class="on">Заряжается</span> · +' + fmt(s.rate, 0) + "% в час", left ? "до " + lim + "% ≈ " + (left >= 1 ? Math.floor(left) + " ч " : "") + Math.round((left % 1) * 60) + " мин" : "лимит " + lim + "%"];
+    }
+    if (v.awake) return ["Обновлено " + ago(v.lastAwake), "лимит " + (ncfg.limit || 80) + "%"];
+    if (live && !v.ok && v.err) return [esc(v.err[0].toUpperCase() + v.err.slice(1)), ago(v.lastPoll)];
+    if (v.lastAwake) return ["Спит, данные " + when(v.lastAwake), ""];
+    return ["Ждём, когда машина проснётся", ""];
+  }
+  function nearestDue() {
+    const items = journal.filter((j) => j.due).map((j) => Object.assign({ days: daysUntil(j.due) }, j)).filter((j) => j.days != null && j.days <= 30);
+    items.sort((a, b) => a.days - b.days);
+    return items[0] || null;
+  }
+  function renderHome() {
+    const v = view[current];
+    renderCar();
+    countTo($("soc"), v.soc, "%", introPending);
+    countTo($("range"), v.rangeKm, "км", introPending);
+    introPending = false;
+    $("turntable").classList.toggle("charging", !!v.charging);
+    updateChargeRing();
+    $("bar").style.width = (v.soc || 0) + "%";
+    $("bar").className = v.soc != null && v.soc <= 20 ? "low" : "";
+    $("limit-mark").style.left = "calc(" + (ncfg.limit || 80) + "% - 1px)";
+    const [a, b] = statusText(v);
+    $("status").innerHTML = a;
+    $("status-r").textContent = b;
+    $("t-aux").textContent = v.aux != null ? fmt(v.aux, 1) + " В" : "—";
+    const s = v.sess[0];
+    $("t-last").textContent = s ? "+" + Math.round(s.to - s.from) + "%" : "—";
+    $("t-last-l").textContent = s ? (s.ongoing ? "заряжается" : "зарядка " + when(s.start).replace(/ \d\d:\d\d$/, "")) : "последняя зарядка";
+    $("t-today").textContent = v.today != null ? "−" + Math.round(v.today) + "%" : "—";
+
+    const hot = IDS.map((c) => ({ c, t: view[c].temps && view[c].temps.length ? Math.max(...view[c].temps) : null })).filter((h) => h.t != null && h.t >= (ncfg.heatLimit || 40))[0];
+    $("heat-row").hidden = !hot;
+    if (hot) $("heat-text").textContent = "Батарея " + META[hot.c].name + " нагрелась до " + hot.t + " °C";
+    const due = nearestDue();
+    $("due-row").hidden = !due;
+    if (due) {
+      $("due-text").textContent = due.title + (due.car && META[due.car] ? " · " + META[due.car].name : "");
+      $("due-side").textContent = dueText(due.days);
+      $("due-side").className = "side" + (due.days <= 7 ? " warn" : "");
+    }
+    const on = live && ncfg.topic;
+    $("notify-side").textContent = on ? "включены" : "не настроены";
+    $("notify-side").className = "side" + (on ? "" : " off");
+    $("demo-note").hidden = live;
+  }
+
+  /* ================= батарея ================= */
+  function renderBattery() {
+    const v = view[current];
+    $("b-car").textContent = META[current].name;
+    $("ring").setAttribute("stroke-dashoffset", (314.16 * (1 - (v.soh || 0) / 100)).toFixed(1));
+    $("ring-val").textContent = v.soh != null ? Math.round(v.soh) + "%" : "—";
+    const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
+    const rows = [
+      li("Ёмкость", v.soh != null ? "≈ " + fmt(v.capKwh, 1) + " кВт·ч" : "—"),
+      li("Осталось", v.soc != null ? "≈ " + fmt(v.capKwh * v.soc / 100, 1) + " кВт·ч" : "—")
+    ];
+    if (v.ah != null) rows.push(li("Ёмкость в Ah", fmt(v.ah, 1)));
+    if (v.hx != null) rows.push(li("Hx", fmt(v.hx, 1) + "%"));
+    if (v.packV != null) rows.push(li("Напряжение", fmt(v.packV, 0) + " В"));
+    $("b-list").innerHTML = rows.join("");
+    $("capbars-card").hidden = v.bars == null;
+    if (v.bars != null) {
+      $("b-bars").textContent = "≈ " + v.bars + " из 12";
+      $("capbars").innerHTML = Array.from({ length: 12 }, (_, i) => '<i class="' + (i < v.bars ? "on" : "") + '" style="height:' + (40 + i * 5) + '%"></i>').join("");
+    }
+    $("cells-card").hidden = v.vmin == null;
+    if (v.vmin != null) {
+      $("cell-count").textContent = v.cellCount + " шт.";
+      $("v-min").textContent = fmt(v.vmin, 3);
+      $("v-max").textContent = fmt(v.vmax, 3);
+      $("v-diff").textContent = Math.round((v.vmax - v.vmin) * 1000);
+    }
+    $("temps-card").hidden = !(v.temps && v.temps.length);
+    if (v.temps) $("temps").innerHTML = v.temps.map((t, i) => li("Датчик " + (i + 1), t + " °C")).join("");
+    $("b-unknown").hidden = current !== "ariya";
+    renderHealth();
+  }
+  function renderHealth() {
+    const card = $("health-card");
+    card.hidden = current !== "leaf";
+    if (card.hidden) return;
+    // по одной точке на месяц: последняя запись месяца
+    const byMonth = {};
+    health.forEach((p) => { const d = new Date(p.t * 1000); byMonth[d.getFullYear() * 12 + d.getMonth()] = p; });
+    const pts = Object.keys(byMonth).sort((a, b) => a - b).map((k) => byMonth[k]);
+    const W = 360, H = 150, L = 34, R = 10, T = 12, B = 24, iw = W - L - R, ih = H - T - B;
+    if (pts.length < 2) {
+      $("health-chart").innerHTML = '<text x="' + (W / 2) + '" y="' + (H / 2) + '" text-anchor="middle">График появится через месяц-два наблюдений</text>';
+      $("hl-sum").textContent = "";
+      $("hl-note").textContent = "Мостик раз в день записывает здоровье батареи, когда Leaf на связи.";
+      return;
+    }
+    const vals = pts.map((p) => p.soh);
+    const lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
+    const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+    const x = (t) => L + (t - t0) / Math.max(1, t1 - t0) * iw;
+    const y = (v) => T + ih - (v - lo) / (hi - lo) * ih;
+    let s = "";
+    [lo, Math.round((lo + hi) / 2), hi].forEach((g) => {
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(g).toFixed(1) + '" y2="' + y(g).toFixed(1) + '" stroke="var(--line)" stroke-dasharray="3 4"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (y(g) + 4).toFixed(1) + '" text-anchor="end">' + g + "%</text>";
+    });
+    [0, Math.floor((pts.length - 1) / 2), pts.length - 1].forEach((i) => {
+      const d = new Date(pts[i].t * 1000);
+      s += '<text x="' + x(pts[i].t).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle") + '">' + MONTHS[d.getMonth()] + " " + String(d.getFullYear()).slice(2) + "</text>";
+    });
+    s += '<path d="' + pts.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + "," + y(p.soh).toFixed(1)).join(" ") + '" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';
+    pts.forEach((p, i) => { s += '<circle cx="' + x(p.t).toFixed(1) + '" cy="' + y(p.soh).toFixed(1) + '" r="' + (i === pts.length - 1 ? 4 : 2.5) + '" fill="var(--accent)"' + (i === pts.length - 1 ? ' stroke="var(--surface)" stroke-width="2"' : "") + "/>"; });
+    $("health-chart").innerHTML = s;
+    const months = Math.max(1, Math.round((t1 - t0) / (30.4 * 86400)));
+    const diff = pts[pts.length - 1].soh - pts[0].soh;
+    const perMonth = diff / months;
+    $("hl-sum").textContent = (diff <= 0 ? "−" : "+") + fmt(Math.abs(diff), 1) + "% за " + months + " мес.";
+    let note = "В среднем " + (perMonth <= 0 ? "−" : "+") + fmt(Math.abs(perMonth), 2) + "% в месяц.";
+    if (pts.length >= 7) {
+      const half = Math.floor(pts.length / 2);
+      const r1 = (pts[half].soh - pts[0].soh) / Math.max(1, half), r2 = (pts[pts.length - 1].soh - pts[half].soh) / Math.max(1, pts.length - 1 - half);
+      if (r2 < r1 * 1.5 && r2 < -0.15) note += " Последние месяцы износ идёт быстрее, чем раньше.";
+      else note += " Скорость износа ровная.";
+    }
+    $("hl-note").textContent = note;
+  }
+
+  /* ================= история ================= */
+  function renderHistory() {
+    const v = view[current];
+    $("h-car").textContent = META[current].name;
+    document.querySelectorAll("#history .seg button").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.days === period));
+    const from = nowSec() - period * 86400;
+    const pts = hist[current].filter((p) => p.t >= from && p.soc != null);
+    const ses = v.sess.filter((s) => s.end >= from);
+    $("h-kwh").textContent = fmt(ses.reduce((a, s) => a + s.kwh, 0), 1) + " кВт·ч";
+    $("h-count").textContent = String(ses.length);
+    const used = usedSince(hist[current], from);
+    $("h-use").textContent = used != null ? Math.round(used / period) + "%" : "—";
+    $("h-min").textContent = pts.length ? Math.round(Math.min(...pts.map((p) => p.soc))) + "%" : "—";
+
+    const W = 360, H = 180, L = 30, R = 8, T = 10, B = 26, iw = W - L - R, ih = H - T - B;
+    const x = (t) => L + (t - from) / (period * 86400) * iw;
+    const y = (s) => T + ih - ih * s / 100;
+    let s = "";
+    [0, 50, 100].forEach((g) => {
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(g) + '" y2="' + y(g) + '" stroke="var(--line)" stroke-dasharray="' + (g ? "3 4" : "0") + '"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (y(g) + 4) + '" text-anchor="end">' + g + "</text>";
+    });
+    const lim = ncfg.limit || 80;
+    s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(lim) + '" y2="' + y(lim) + '" stroke="#5b6575" stroke-dasharray="2 3"/>';
+    if (period === 1) {
+      for (let k = 0; k <= 24; k += 6) { const t = from + k * 3600; s += '<text x="' + x(t) + '" y="' + (H - 6) + '" text-anchor="middle">' + hm(new Date(t * 1000)).slice(0, 2) + ":00</text>"; }
+    } else {
+      const now = new Date();
+      for (let k = 6; k >= 0; k--) { const d = new Date(now); d.setDate(now.getDate() - k); d.setHours(12, 0, 0, 0); const t = d.getTime() / 1000; if (t >= from) s += '<text x="' + x(t) + '" y="' + (H - 6) + '" text-anchor="middle">' + d.getDate() + "</text>"; }
+    }
+    if (pts.length > 1) {
+      let path = "", prev = null;
+      pts.forEach((p) => { const gap = prev && p.t - prev.t > 3 * 3600; path += (path && !gap ? " L" : " M") + x(p.t).toFixed(1) + "," + y(p.soc).toFixed(1); prev = p; });
+      s += '<path d="' + path + '" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';
+      const last = pts[pts.length - 1];
+      s += '<circle cx="' + x(last.t) + '" cy="' + y(last.soc) + '" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>';
+    } else s += '<text x="' + (L + iw / 2) + '" y="' + (T + ih / 2) + '" text-anchor="middle">Пока нет данных за этот период</text>';
+    $("chart").innerHTML = s;
+
+    renderKmDays();
+    $("sessions").innerHTML = ses.length ? ses.map((z) =>
+      '<div class="li"><div><div class="num">' + Math.round(z.from) + "% → " + Math.round(z.to) + "%" + (z.ongoing ? ' <span class="ok-text" style="font-size:12px;font-family:var(--f-body)">идёт</span>' : "") +
+      '</div><div class="muted">' + when(z.start) + '</div></div><span class="muted"><span class="num" style="color:var(--ink)">+' + fmt(z.kwh, 1) + "</span> кВт·ч</span></div>"
+    ).join("") : '<div class="empty">Зарядок за этот период нет</div>';
+  }
+
+  function renderKmDays() {
+    const v = view[current], m = META[current], pts = hist[current];
+    const today = dayStart(new Date());
+    const rows = [];
+    for (let k = 0; k < 7; k++) {
+      const d0 = addDays(today, -k), d1 = addDays(today, -k + 1);
+      const from = d0.getTime() / 1000, to = d1.getTime() / 1000;
+      // точка перед началом дня тоже нужна: заряд мог уйти между вчерашним вечером и сегодняшней поездкой
+      const before = pts.filter((p) => p.soc != null && p.t < from).slice(-1);
+      const inDay = before.concat(pts.filter((p) => p.soc != null && p.t >= from && p.t < to));
+      let used = 0;
+      for (let i = 1; i < inDay.length; i++) { const dd = inDay[i].soc - inDay[i - 1].soc; if (dd < 0) used -= dd; }
+      const km = used / 100 * v.capKwh / m.cons * 100;
+      rows.push({ d: d0, used, km });
+    }
+    const max = Math.max(1, ...rows.map((r) => r.km));
+    const lbl = (r, k) => k === 0 ? "Сегодня" : k === 1 ? "Вчера" : r.d.getDate() + " " + MONTHS[r.d.getMonth()];
+    const shown = rows.map((r, k) => Object.assign({ k }, r)).filter((r) => r.km >= 1);
+    $("km-days").innerHTML = shown.length ? shown.map((r) =>
+      '<div class="li"><div><div>' + lbl(r, r.k) + '</div><div class="km-bar"><i style="width:' + (r.km / max * 100).toFixed(0) + '%"></i></div></div>' +
+      '<span class="muted"><span class="num" style="color:var(--ink)">≈ ' + Math.round(r.km) + " км</span> · −" + Math.round(r.used) + "%</span></div>"
+    ).join("") : '<div class="empty">Поездок за неделю не видно</div>';
+  }
+
+  /* ================= поездка ================= */
+  const TEMP_F = { 20: 1.0, 10: 1.08, 0: 1.2, "-10": 1.35, "-20": 1.5 };
+  const SPEEDS = { city: ["Город", 0.95], hw90: ["Трасса 90", 1.1], hw110: ["Трасса 110+", 1.3] };
+  function tripCalc(car) {
+    const m = META[car], v = view[car];
+    if (!v || v.soc == null) return null;
+    const km = trip.dist * (trip.rt ? 2 : 1);
+    let f = (TEMP_F[trip.temp] || 1) * SPEEDS[trip.speed][1];
+    if (trip.clim) f *= trip.temp <= 10 ? 1.12 : trip.temp >= 20 ? 1.05 : 1;
+    const cons = m.cons * f, needKwh = km / 100 * cons, needPct = needKwh / v.capKwh * 100, left = v.soc - needPct;
+    const cls = left >= 15 ? "ok" : left >= 5 ? "tight" : "no";
+    return { km, cons, needKwh, needPct, left, cls, soc: v.soc, verdict: cls === "ok" ? "Хватит" : cls === "tight" ? "Впритык" : "Не хватит" };
+  }
+  function renderTrip() {
+    const m = META[current];
+    $("p-car").textContent = m.name;
+    $("p-dist").value = trip.dist;
+    $("p-range").value = Math.min(300, Math.max(5, trip.dist));
+    $("p-rt").setAttribute("aria-checked", trip.rt);
+    $("p-clim").setAttribute("aria-checked", trip.clim);
+    $("p-temp").innerHTML = TEMPS.map((t) => '<button class="chip" data-t="' + t + '" aria-pressed="' + (trip.temp === t) + '">' + (t > 0 ? "+" : t < 0 ? "−" : "") + Math.abs(t) + "°</button>").join("");
+    $("p-speed").innerHTML = Object.keys(SPEEDS).map((k) => '<button class="chip" data-s="' + k + '" aria-pressed="' + (trip.speed === k) + '">' + SPEEDS[k][0] + "</button>").join("");
+
+    const out = $("p-result");
+    const r = tripCalc(current);
+    if (!r) { out.innerHTML = '<p class="muted">Нет данных о заряде этой машины, поэтому посчитать нельзя.</p>'; return; }
+    const target = Math.ceil(r.needPct + 15);
+    let advice;
+    if (r.cls === "ok") advice = "Приедете с запасом около " + Math.round(r.left) + "%.";
+    else if (target <= 100) advice = "Чтобы приехать с запасом 15%, зарядите до " + Math.min(100, Math.ceil(target / 5) * 5) + "%.";
+    else advice = "Даже полного заряда не хватит с запасом. Понадобится зарядка в пути.";
+    const keep = Math.max(0, Math.min(r.soc, r.left));
+
+    // сравнение обеих машин
+    const all = IDS.map((c) => ({ c, r: tripCalc(c) })).filter((x) => x.r);
+    let cmp = "";
+    if (all.length === IDS.length) {
+      const best = all.slice().sort((a, b) => b.r.left - a.r.left)[0];
+      const rec = best.r.cls === "no" ? "Обеим машинам понадобится зарядка перед поездкой." :
+        all.every((x) => x.r.cls === "ok") ? "Хватит обеим. С бо́льшим запасом поедет " + META[best.c].name + "." :
+        "Лучше взять " + META[best.c].name + ".";
+      cmp = '<h2 style="margin-top:4px">Какую машину взять</h2><div class="compare">' + all.map((x) =>
+        '<div class="cmp' + (x.c === best.c && best.r.cls !== "no" ? " best" : "") + '"><div><b>' + META[x.c].name + '</b><div class="muted">сейчас ' + Math.round(x.r.soc) + "%, останется " + (x.r.left > 0 ? "≈ " + Math.round(x.r.left) + "%" : "0%") + '</div></div><span class="v ' + x.r.cls + '">' + x.r.verdict + "</span></div>"
+      ).join("") + '</div><p class="muted">' + rec + "</p>";
+    }
+
+    out.innerHTML =
+      '<div class="verdict"><span class="big ' + r.cls + '">' + r.verdict + '</span><span class="muted">' + m.name + ". " + advice + "</span></div>" +
+      '<div class="trip-bar" aria-hidden="true"><i style="left:0;width:' + keep + '%;background:var(--accent)"></i><i style="left:' + keep + "%;width:" + Math.max(0, r.soc - keep) + '%;background:var(--warn);opacity:.8"></i></div>' +
+      '<div class="list">' +
+      '<div class="li"><span class="muted">Сейчас</span><span class="num">' + Math.round(r.soc) + "%</span></div>" +
+      '<div class="li"><span class="muted">Уйдёт на ' + r.km + ' км</span><span class="num">≈ ' + Math.round(r.needPct) + "% · " + fmt(r.needKwh, 1) + " кВт·ч</span></div>" +
+      '<div class="li"><span class="muted">Останется</span><span class="num">' + (r.left > 0 ? "≈ " + Math.round(r.left) + "%" : "0%") + "</span></div>" +
+      '<div class="li"><span class="muted">Расход в этих условиях</span><span class="num">' + fmt(r.cons, 1) + " кВт·ч/100</span></div>" +
+      "</div>" + cmp +
+      '<p class="muted">Это оценка, реальный расход может отличаться на 10–15%: влияют ветер, рельеф, загрузка и стиль езды.</p>';
+  }
+  function saveTrip() { store.set("trip", trip); renderTrip(); }
+
+  /* ================= журнал ================= */
+  const KINDS = {
+    service: ["ТО", '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>'],
+    tyres: ["Шины", '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'],
+    insurance: ["Страховка", '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>'],
+    inspection: ["Техосмотр", '<path d="M6 3h9l3 3v15H6z"/><path d="M9 13l2 2 4-4"/>'],
+    other: ["Другое", '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>']
+  };
+  // подсказки названий в форме: нажали — название подставилось, его можно дописать
+  const SUGGEST = [["ТО", "service"], ["Замена шин", "tyres"], ["Страховка ОСАГО", "insurance"], ["Техосмотр", "inspection"], ["Салонный фильтр", "service"], ["Тормозная жидкость", "service"]];
+  KINDS.task = ["", '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/>'];
+  const kindIcon = (k) => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (KINDS[k] || KINDS.other)[1] + "</svg>";
+  function jItemHTML(j, withDue) {
+    const days = daysUntil(j.due);
+    const dcls = days == null ? "" : days < 0 ? " over" : days <= 14 ? " soon" : "";
+    return '<div class="jitem"><div class="jicon">' + kindIcon(j.kind) + '</div><div class="jbody">' +
+      "<b>" + esc(j.title || "Без названия") + "</b>" +
+      '<span class="muted">' + (META[j.car] ? META[j.car].name : "Обе машины") + (j.done ? " · сделано " + dateLabel(j.done) : "") + "</span>" +
+      (withDue && j.due ? '<span class="jdue' + dcls + '">' + dateLabel(j.due) + " · " + dueText(days) + "</span>" : "") +
+      (j.note ? '<span class="muted">' + esc(j.note) + "</span>" : "") +
+      '<div class="jactions"><button class="mini" data-jedit="' + esc(j.id) + '">Изменить</button>' +
+      (withDue && j.due ? '<button class="mini" data-jdone="' + esc(j.id) + '">Отметить сделанным</button>' : "") + "</div>" +
+      "</div></div>";
+  }
+  function renderJournal() {
+    document.querySelectorAll("#j-filter button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.f === jFilter));
+    const list = journal.filter((j) => jFilter === "all" || j.car === jFilter || !j.car);
+    const dueL = list.filter((j) => j.due).sort((a, b) => a.due.localeCompare(b.due));
+    const doneL = list.filter((j) => !j.due).sort((a, b) => (b.done || "").localeCompare(a.done || ""));
+    const nothing = !dueL.length && !doneL.length;
+    $("j-due-card").querySelector("h2").hidden = nothing;
+    $("j-due").innerHTML = dueL.length ? dueL.map((j) => jItemHTML(j, true)).join("")
+      : nothing ? '<div class="empty">Здесь пока пусто. Нажмите «Добавить» и запишите то, о чём нужно помнить.</div>'
+      : '<div class="empty">Записей со сроком нет</div>';
+    $("j-done-card").hidden = !doneL.length;
+    $("j-done").innerHTML = doneL.map((j) => jItemHTML(j, false)).join("");
+  }
+  async function saveJournal() {
+    if (live) {
+      try { await api("api/journal", { method: "POST", body: journal.map((j) => JSON.stringify(j)).join("\n"), headers: { "Content-Type": "text/plain" } }); }
+      catch (e) { alertSheet("Не удалось сохранить на мостике. Проверьте, что телефон в домашней сети."); }
+    } else store.set("journal-local", journal);
+    renderJournal(); renderHome();
+  }
+  function journalForm(item) {
+    const j = item || { id: "", car: current, kind: "task", title: "", done: isoDate(new Date()), due: "", note: "" };
+    const opts = (cur) => ["leaf", "ariya", ""].map((c) => '<button type="button" data-fcar="' + c + '" aria-pressed="' + (cur === c) + '">' + (c ? META[c].name : "Обе") + "</button>").join("");
+    return '<form id="jform" style="display:flex;flex-direction:column;gap:14px">' +
+      '<div class="seg" role="group" aria-label="Машина" id="f-car">' + opts(j.car) + "</div>" +
+      '<div class="field"><label for="f-title">Название</label><input class="input" id="f-title" value="' + esc(j.title) + '" placeholder="Своё название или выберите ниже" required></div>' +
+      '<div class="chips" id="f-sugg">' + SUGGEST.map((s, i) => '<button type="button" class="chip" data-sugg="' + i + '" aria-pressed="' + (j.title === s[0]) + '">' + s[0] + "</button>").join("") + "</div>" +
+      '<div class="btn-row"><div class="field"><label for="f-done">Когда</label><input class="input" type="date" id="f-done" value="' + esc(j.done) + '"></div>' +
+      '<div class="field"><label for="f-due">Следующий срок</label><input class="input" type="date" id="f-due" value="' + esc(j.due) + '"></div></div>' +
+      '<div class="chips" id="f-quick"><button type="button" class="chip" data-plus="182">+ полгода</button><button type="button" class="chip" data-plus="365">+ год</button><button type="button" class="chip" data-plus="0">без срока</button></div>' +
+      '<div class="field"><label for="f-note">Заметка</label><input class="input" id="f-note" value="' + esc(j.note) + '" placeholder="Где делали, пробег, цена"></div>' +
+      '<input type="hidden" id="f-id" value="' + esc(j.id) + '">' +
+      '<button class="btn" type="submit">Сохранить</button>' +
+      (j.id ? '<button class="btn soft" type="button" id="f-del" style="color:var(--danger)">Удалить запись</button>' : "") +
+      "</form>";
+  }
+  let formCar = null, formKind = null;
+  function openJournalForm(item) {
+    formCar = item ? item.car : current; formKind = item ? item.kind : "task";
+    openSheet(item ? "Изменить запись" : "Новая запись", journalForm(item));
+  }
+
+  /* ================= настройки ================= */
+  function fillNotifyForm() {
+    $("n-topic").value = ncfg.topic || "";
+    $("n-server").value = ncfg.server && ncfg.server !== "https://ntfy.sh" ? ncfg.server : "";
+    $("n-limit").value = ncfg.limit; $("n-low").value = ncfg.lowSoc; $("n-hour").value = ncfg.eveningHour; $("n-heat").value = ncfg.heatLimit;
+    $("n-mhour").value = ncfg.morningHour; $("n-qfrom").value = ncfg.quietFrom; $("n-qto").value = ncfg.quietTo;
+    $("n-city").value = ncfg.city || "";
+    $("n-place").textContent = ncfg.hasLoc ? "Прогноз для: " + (ncfg.city || fmt(ncfg.lat, 2) + ", " + fmt(ncfg.lon, 2)) : "Город не выбран, утренний прогноз не придёт.";
+    SWITCHES.forEach((k) => $("n-" + k).setAttribute("aria-checked", !!ncfg[k]));
+  }
+  function renderSettings() {
+    $("n-test").disabled = !live;
+
+    // адаптеры
+    $("adapters").innerHTML = IDS.map((c) => {
+      const v = view[c];
+      let st;
+      if (!live) st = "<small>демо</small>";
+      else if (!v.adapter) st = '<small class="warn-text">не выбран</small>';
+      else st = "<small>" + esc(v.addr) + " · " + (v.ok ? '<span class="ok-text">на связи</span>' : '<span class="warn-text">' + esc(v.err || "ждём") + "</span>") + "</small>";
+      return '<div class="dev"><div><b>' + META[c].name + "</b>" + st + "</div>" + (live && v.adapter ? '<div class="btns"><button class="mini" data-unassign="' + c + '">Убрать</button></div>' : "") + "</div>";
+    }).join("") + (live ? "" : '<p class="muted" style="margin-top:6px">Поиск адаптеров работает, когда приложение открыто с мостика в домашней сети.</p>');
+    $("scan").disabled = !live || scanResults === "busy";
+    $("scan").innerHTML = scanResults === "busy" ? '<span class="spinner"></span>Ищу' : "Найти";
+    if (Array.isArray(scanResults)) {
+      const likely = (d) => /obd|elm|vlink|v-link|vgate|icar|konnwei|lelink|vlinker|ble/i.test(d.name || "");
+      const list = scanResults.slice().sort((a, b) => (likely(b) - likely(a)) || (b.rssi - a.rssi));
+      $("scan-list").innerHTML = list.length ? '<p class="muted" style="margin:8px 0 2px">Найдено поблизости. Похожие на адаптеры — сверху.</p>' + list.map((d) =>
+        '<div class="dev"><div><b>' + esc(d.name || "Без имени") + "</b><small>" + esc(d.addr) + " · " + d.rssi + " дБм</small></div>" +
+        '<div class="btns">' + IDS.map((c) => '<button class="mini' + (likely(d) ? " acc" : "") + '" data-assign="' + c + '" data-addr="' + esc(d.addr) + '" data-type="' + d.type + '">' + META[c].name + "</button>").join("") + "</div></div>"
+      ).join("") : '<div class="empty">Ничего не найдено. Включите зажигание или зарядку, чтобы адаптер проснулся.</div>';
+    } else $("scan-list").innerHTML = "";
+
+    document.querySelectorAll("#con-car button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.car === consoleCar));
+    $("con-send").disabled = !live;
+    $("photo-clear").hidden = !(photos[current] || store.get("photo-" + current, null));
+    const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
+    $("bridge-info").innerHTML = live
+      ? li("Адрес", esc(bridge.ip || location.host)) + li("Работает", fmt(Math.floor(bridge.uptime / 3600)) + " ч " + Math.floor(bridge.uptime % 3600 / 60) + " мин") + li("Время мостика", bridge.time > 1700000000 ? when(bridge.time) : "ещё не синхронизировано")
+      : li("Связь", "нет, показаны демо-данные");
+  }
+
+  function renderTop() {
+    document.querySelectorAll(".switcher button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.car === current));
+    const l = $("link"), v = view[current];
+    if (!live) { l.className = "link"; l.textContent = "Демо"; }
+    else if (v.charging) { l.className = "link on"; l.textContent = "Заряжается"; }
+    else if (v.awake) { l.className = "link on"; l.textContent = "На связи"; }
+    else if (v.adapter && v.ok) { l.className = "link"; l.textContent = "Спит"; }
+    else { l.className = "link warn"; l.textContent = v.adapter ? "Нет связи" : "Нет адаптера"; }
+  }
+
+  function render() {
+    rebuild();
+    renderTop(); renderHome(); renderBattery(); renderHistory(); renderTrip(); renderJournal(); renderSettings();
+    if (openSpot) $("sheet-body").innerHTML = spotHTML(openSpot);
+  }
+
+  /* ================= всплывающая карточка ================= */
+  function spotHTML(k) {
+    const m = META[current], v = view[current];
+    const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
+    if (k === "port") {
+      const s = v.sess[0];
+      if (v.charging) return '<div class="sheet-big" style="color:var(--accent-text)">Заряжается</div><div class="list">' + li("Скорость", "+" + fmt(s.rate, 0) + "% в час") + li("Уже добавлено", fmt(s.kwh, 1) + " кВт·ч") + li("Разъём", m.port) + "</div>";
+      return '<div class="sheet-big">Не заряжается</div><div class="list">' + li("Последняя зарядка", s ? when(s.start) + ", +" + Math.round(s.to - s.from) + "%" : "—") + li("Разъём", m.port) + "</div>";
+    }
+    if (k === "battery") {
+      return '<div class="sheet-big">' + (v.soh != null ? Math.round(v.soh) + "%" : "—") + "<small>здоровье</small></div><div class=\"list\">" +
+        (v.bars != null ? li("Деления ёмкости", "≈ " + v.bars + " из 12") : "") + li("Ёмкость", v.soh != null ? "≈ " + fmt(v.capKwh, 1) + " кВт·ч" : "—") +
+        (v.vmin != null ? li("Разброс ячеек", Math.round((v.vmax - v.vmin) * 1000) + " мВ") : "") + (v.temp != null ? li("Температура", v.temp + " °C") : "") +
+        '</div><a class="btn soft" href="#battery" data-close>Подробнее</a>';
+    }
+    if (k === "aux") {
+      if (v.aux == null) return '<div class="sheet-big">—</div><p class="muted">Нет данных от адаптера.</p>';
+      return '<div class="sheet-big">' + fmt(v.aux, 1) + "<small>вольт</small></div><div class=\"list\">" + li("Состояние", v.aux >= 12.2 ? "в норме" : v.aux >= 12.0 ? "чуть разряжен" : "подзарядить") + "</div>" +
+        '<p class="muted">Если падает ниже 12,0 В, машина может не включиться. Адаптер в разъёме тоже понемногу его разряжает.</p>';
+    }
+    if (k === "tyres") {
+      const t = journal.filter((j) => (j.kind === "tyres" || /шин|резин/i.test(j.title || "")) && (j.car === current || !j.car)).sort((a, b) => (b.done || "").localeCompare(a.done || ""))[0];
+      return '<div class="sheet-big">' + (t ? esc(t.title) : "Нет записей") + "</div>" +
+        (t ? '<div class="list">' + li("Поставили", dateLabel(t.done) || "—") + (t.due ? li("Менять", dateLabel(t.due)) : "") + "</div>" : "") +
+        '<p class="muted">Давление в шинах добавим после проверки на машине. Если записать смену шин в журнал, она покажется здесь.</p><a class="btn soft" href="#journal" data-close>Открыть журнал</a>';
+    }
+    return "";
+  }
+  let openSpot = null;
+  function openSheet(title, html) {
+    $("sheet-title").textContent = title;
+    $("sheet-body").innerHTML = html;
+    $("sheet").classList.add("open"); $("scrim").classList.add("open");
+    $("sheet-x").focus({ preventScroll: true });
+  }
+  function openSpotSheet(k) {
+    buzz(10);
+    openSpot = k;
+    openSheet(SPOT_NAMES[k], spotHTML(k));
+    document.querySelectorAll(".spot").forEach((b) => b.setAttribute("aria-expanded", b.dataset.spot === k));
+  }
+  function alertSheet(text) { openSheet("Не получилось", '<p class="muted">' + esc(text) + '</p><button class="btn soft" data-close>Понятно</button>'); }
+  function closeSheet() {
+    openSpot = null;
+    $("sheet").classList.remove("open"); $("scrim").classList.remove("open");
+    document.querySelectorAll(".spot").forEach((b) => b.setAttribute("aria-expanded", "false"));
+  }
+
+  /* ================= мостик ================= */
+  async function api(path, opts = {}, timeout = 6000) {
+    const ctl = new AbortController();
+    const tm = setTimeout(() => ctl.abort(), timeout);
+    try {
+      const r = await fetch(path, Object.assign({ signal: ctl.signal, cache: "no-store" }, opts));
+      if (!r.ok) throw new Error(await r.text());
+      return r;
+    } finally { clearTimeout(tm); }
+  }
+  const post = (path, params, timeout) => api(path, { method: "POST", body: new URLSearchParams(params) }, timeout);
+  async function loadState() {
+    const r = await api("api/state", {}, 4000);
+    const j = await r.json();
+    if (!j || !j.cars) throw new Error("not a bridge");
+    bridge = j; live = true;
+  }
+  async function loadHistory(car) { try { const r = await api("api/history?car=" + car, {}, 15000); hist[car] = parseHist(car, await r.text()); } catch (e) {} }
+  async function loadJournal() {
+    try {
+      const r = await api("api/journal", {}, 6000);
+      journal = (await r.text()).split("\n").map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean);
+    } catch (e) {}
+  }
+  async function loadHealth() {
+    try {
+      const r = await api("api/health", {}, 8000);
+      health = (await r.text()).split("\n").map((l) => {
+        const p = l.split(";"), t = +p[0];
+        if (!t) return null;
+        const soh = parseFloat(p[1]), ah = parseFloat(p[2]);
+        return { t, soh: soh > 0 ? soh : (ah > 0 ? ah / META.leaf.nominalAh * 100 : null), ah: ah > 0 ? ah : null };
+      }).filter((x) => x && x.soh != null).sort((a, b) => a.t - b.t);
+    } catch (e) {}
+  }
+  async function loadNotify() { try { const r = await api("api/notify", {}, 5000); ncfg = Object.assign(ncfg, await r.json()); } catch (e) {} }
+  async function refreshAll(withHist) {
+    try { await loadState(); if (withHist) await Promise.all(IDS.map(loadHistory)); } catch (e) {}
+    render();
+  }
+
+  /* ================= навигация ================= */
+  const SCREENS = ["home", "battery", "history", "trip", "journal", "settings"];
+  function route() {
+    const h = location.hash.replace("#", "");
+    const name = SCREENS.includes(h) ? h : "home";
+    SCREENS.forEach((s) => { $(s).hidden = s !== name; });
+    document.querySelectorAll(".tabbar a").forEach((a) => { if (a.dataset.screen === name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+    closeSheet();
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener("hashchange", route);
+
+  /* ================= события ================= */
+  function switchTo(car, dir) {
+    if (car === current) return;
+    closeSheet();
+    const wrap = $("car-wrap");
+    const d = dir || (IDS.indexOf(car) > IDS.indexOf(current) ? -1 : 1);
+    wrap.style.transform = "translateX(" + (d * 60) + "%)"; wrap.style.opacity = "0";
+    setTimeout(() => {
+      current = car; consoleCar = car; store.set("car", current); introPending = true; buzz(8); render();
+      const w = $("car-wrap");
+      w.classList.add("dragging"); w.style.transform = "translateX(" + (-d * 60) + "%)"; w.style.opacity = "0";
+      requestAnimationFrame(() => requestAnimationFrame(() => { w.classList.remove("dragging"); w.style.transform = ""; w.style.opacity = ""; }));
+    }, 200);
+  }
+  document.querySelectorAll(".switcher button").forEach((b) => b.addEventListener("click", () => switchTo(b.dataset.car)));
+
+  // Поворот машины: тянем пальцем — машина поворачивается, точка бежит по кольцу.
+  // Когда появятся фото для обзора на 360°, сюда же подключим смену кадров.
+  const stage = $("stage");
+  const MAX_TURN = 32;
+  let drag = null;
+  function setTurn(deg, dragging) {
+    const wrap = $("car-wrap"), ring = $("turntable");
+    wrap.classList.toggle("dragging", !!dragging);
+    ring.classList.toggle("dragging", !!dragging);
+    wrap.style.transform = deg ? "rotateY(" + deg.toFixed(1) + "deg)" : "";
+    const th = deg / MAX_TURN * (Math.PI / 2);
+    $("ring-dot").style.transform = "translate(" + (180 + 170 * Math.sin(th)).toFixed(1) + "px, " + (30 + 22 * Math.cos(th)).toFixed(1) + "px)";
+  }
+  stage.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, lastX: e.clientX, dx: 0, moved: false, id: e.pointerId }; V3.vel = 0; });
+  stage.addEventListener("pointermove", (e) => {
+    if (drag) {
+      drag.dx = e.clientX - drag.x;
+      if (!drag.moved && Math.abs(drag.dx) > 6 && Math.abs(drag.dx) > Math.abs(e.clientY - drag.y)) { drag.moved = true; try { stage.setPointerCapture(drag.id); } catch (err) {} }
+      if (drag.moved && V3.active) {
+        const d = (e.clientX - drag.lastX) * 0.012;
+        drag.lastX = e.clientX;
+        if (!V3.dragging) { buzz(6); V3.tickYaw = V3.yaw[current]; }
+        V3.yaw[current] += d; V3.vel = d; V3.dragging = true; kick();
+      } else if (drag.moved) {
+        const w = stage.getBoundingClientRect().width || 360;
+        const raw = drag.dx / w * 90;
+        setTurn(Math.max(-MAX_TURN, Math.min(MAX_TURN, raw)), true);
+      }
+    } else if (e.pointerType === "mouse" && !V3.active) {
+      const r = stage.getBoundingClientRect();
+      setTurn(((e.clientX - r.left) / r.width - .5) * 12, false);
+    }
+  });
+  function endDrag() {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    if (V3.active) { V3.dragging = false; kick(); } else setTurn(0, false);
+    if (moved) stage.dataset.justDragged = "1";
+  }
+  stage.addEventListener("pointerup", endDrag);
+  stage.addEventListener("pointercancel", endDrag);
+  stage.addEventListener("pointerleave", (e) => { if (!drag && e.pointerType === "mouse" && !V3.active) setTurn(0, false); });
+  stage.addEventListener("keydown", (e) => {
+    if (!V3.active || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+    e.preventDefault(); V3.yaw[current] += e.key === "ArrowLeft" ? -0.3 : 0.3; kick();
+  });
+  stage.addEventListener("click", (e) => {
+    if (stage.dataset.justDragged) { delete stage.dataset.justDragged; return; }
+    if (e.target.closest("[data-retry]")) { V3.tries[current] = 0; retryNow(current); return; }
+    const sp = e.target.closest(".spot");
+    if (sp) openSpotSheet(sp.dataset.spot);
+  });
+  $("pair").addEventListener("click", () => { location.hash = "#battery"; });
+  $("scrim").addEventListener("click", closeSheet);
+  $("sheet-x").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+
+  // история
+  document.querySelectorAll("#history .seg button").forEach((b) => b.addEventListener("click", () => { period = +b.dataset.days; renderHistory(); }));
+
+  // поездка
+  $("p-dist").addEventListener("input", (e) => { const v = parseInt(e.target.value, 10); if (v > 0 && v <= 600) { trip.dist = v; store.set("trip", trip); $("p-range").value = Math.min(300, Math.max(5, v)); renderTripResultOnly(); } });
+  $("p-range").addEventListener("input", (e) => { trip.dist = +e.target.value; $("p-dist").value = trip.dist; store.set("trip", trip); renderTripResultOnly(); });
+  function renderTripResultOnly() { const d = $("p-dist").value; renderTrip(); $("p-dist").value = d; }
+  $("p-rt").addEventListener("click", () => { trip.rt = !trip.rt; saveTrip(); });
+  $("p-clim").addEventListener("click", () => { trip.clim = !trip.clim; saveTrip(); });
+  $("p-temp").addEventListener("click", (e) => { const b = e.target.closest("[data-t]"); if (b) { trip.temp = +b.dataset.t; saveTrip(); } });
+  $("p-speed").addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b) { trip.speed = b.dataset.s; saveTrip(); } });
+
+  // журнал
+  document.querySelectorAll("#j-filter button").forEach((b) => b.addEventListener("click", () => { jFilter = b.dataset.f; renderJournal(); }));
+  $("j-add").addEventListener("click", () => openJournalForm(null));
+  $("journal").addEventListener("click", (e) => {
+    const ed = e.target.closest("[data-jedit]"), dn = e.target.closest("[data-jdone]");
+    if (ed) openJournalForm(journal.find((j) => j.id === ed.dataset.jedit));
+    if (dn) {
+      const j = journal.find((x) => x.id === dn.dataset.jdone);
+      if (!j) return;
+      // отметили сделанным: дата — сегодня, следующий срок — через тот же интервал, что был
+      const prevDone = parseDate(j.done), prevDue = parseDate(j.due);
+      const span = prevDone && prevDue ? Math.round((prevDue - prevDone) / 86400000) : 365;
+      j.done = isoDate(new Date());
+      j.due = isoDate(addDays(new Date(), span > 0 ? span : 365));
+      saveJournal();
+    }
+  });
+  $("sheet-body").addEventListener("click", (e) => {
+    if (e.target.closest("[data-close]")) { closeSheet(); return; }
+    const c = e.target.closest("[data-fcar]"), k = e.target.closest("[data-fkind]"), p = e.target.closest("[data-plus]"), sg = e.target.closest("[data-sugg]");
+    if (sg) {
+      const s = SUGGEST[+sg.dataset.sugg];
+      $("f-title").value = s[0];
+      formKind = s[1];
+      document.querySelectorAll("#f-sugg button").forEach((b) => b.setAttribute("aria-pressed", b === sg));
+    }
+    if (c) { formCar = c.dataset.fcar; document.querySelectorAll("#f-car button").forEach((b) => b.setAttribute("aria-pressed", b === c)); }
+    if (k) {
+      formKind = k.dataset.fkind;
+      document.querySelectorAll("#f-kind button").forEach((b) => b.setAttribute("aria-pressed", b === k));
+      const t = $("f-title");
+      if (t && !t.value) t.value = KINDS[formKind][0] === "Другое" ? "" : KINDS[formKind][0];
+    }
+    if (p) {
+      const n = +p.dataset.plus;
+      const base = parseDate($("f-done").value) || new Date();
+      $("f-due").value = n ? isoDate(addDays(base, n)) : "";
+    }
+    if (e.target.id === "f-del") {
+      const id = $("f-id").value;
+      journal = journal.filter((j) => j.id !== id);
+      closeSheet(); saveJournal();
+    }
+  });
+  $("sheet-body").addEventListener("submit", (e) => {
+    if (e.target.id !== "jform") return;
+    e.preventDefault();
+    const id = $("f-id").value || "j" + Date.now().toString(36);
+    const title = $("f-title").value.trim();
+    if (!title) { $("f-title").focus(); return; }
+    const item = { id, car: formCar || "", kind: formKind || "task", title, done: $("f-done").value, due: $("f-due").value, note: $("f-note").value.trim() };
+    const i = journal.findIndex((j) => j.id === id);
+    if (i >= 0) journal[i] = item; else journal.push(item);
+    closeSheet(); saveJournal();
+  });
+
+  // копия журнала
+  $("j-export").addEventListener("click", () => {
+    const data = JSON.stringify({ app: "mynissan", saved: isoDate(new Date()), journal }, null, 2);
+    try {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+      a.download = "zhurnal-" + isoDate(new Date()) + ".json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      $("j-msg").textContent = "Файл сохранён в «Загрузки». Если он не появился, откройте приложение с мостика и попробуйте ещё раз.";
+    } catch (e) { $("j-msg").textContent = "Не удалось сохранить файл."; }
+  });
+  let pendingImport = null;
+  $("j-import").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      let items = null;
+      try { const j = JSON.parse(rd.result); items = Array.isArray(j) ? j : j.journal; }
+      catch (err) { items = String(rd.result).split("\n").map((l) => { try { return JSON.parse(l); } catch (x) { return null; } }).filter(Boolean); }
+      items = (items || []).filter((x) => x && typeof x === "object" && x.title).map((x, i) => ({
+        id: String(x.id || "r" + Date.now().toString(36) + i), car: META[x.car] ? x.car : "", kind: KINDS[x.kind] ? x.kind : "task",
+        title: String(x.title || ""), done: parseDate(x.done) ? x.done : "", due: parseDate(x.due) ? x.due : "", note: String(x.note || "")
+      }));
+      if (!items.length) { $("j-msg").textContent = "В файле нет записей журнала."; return; }
+      pendingImport = items;
+      openSheet("Восстановить журнал?", '<p class="muted">Сейчас в журнале ' + journal.length + " " + plural(journal.length, "запись", "записи", "записей") + ". Они заменятся записями из копии: " + items.length + " " + plural(items.length, "запись", "записи", "записей") + '.</p><button class="btn" id="imp-yes">Заменить</button><button class="btn soft" data-close>Отмена</button>');
+    };
+    rd.readAsText(f);
+  });
+  $("sheet-body").addEventListener("click", (e) => {
+    if (e.target.id === "imp-yes" && pendingImport) {
+      journal = pendingImport; pendingImport = null;
+      closeSheet(); saveJournal();
+      $("j-msg").textContent = "Журнал восстановлен.";
+    }
+  });
+
+  // уведомления
+  SWITCHES.forEach((k) => $("n-" + k).addEventListener("click", (e) => {
+    const b = e.currentTarget; b.setAttribute("aria-checked", b.getAttribute("aria-checked") !== "true");
+  }));
+  $("n-gen").addEventListener("click", () => {
+    const abc = "abcdefghijkmnpqrstuvwxyz23456789";
+    let s = "mynissan-";
+    const rnd = new Uint32Array(10);
+    try { crypto.getRandomValues(rnd); } catch (e) { for (let i = 0; i < 10; i++) rnd[i] = Math.floor(Math.random() * 1e9); }
+    for (let i = 0; i < 10; i++) s += abc[rnd[i] % abc.length];
+    $("n-topic").value = s;
+  });
+  $("n-find").addEventListener("click", async () => {
+    const q = $("n-city").value.trim();
+    const out = $("n-place");
+    if (!q) { out.textContent = "Введите название города."; return; }
+    out.textContent = "Ищу…";
+    try {
+      const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&language=ru&format=json&name=" + encodeURIComponent(q));
+      const j = await r.json();
+      const g = j.results && j.results[0];
+      if (!g) { out.textContent = "Не нашёл такой город. Попробуйте написать иначе."; return; }
+      foundPlace = { lat: g.latitude.toFixed(4), lon: g.longitude.toFixed(4), label: [g.name, g.admin1].filter(Boolean).join(", ") };
+      $("n-city").value = foundPlace.label;
+      out.textContent = "Нашёл: " + foundPlace.label + ". Нажмите «Сохранить».";
+    } catch (e) { out.textContent = "Не получилось найти город: нужен интернет. Попробуйте ещё раз из дома."; }
+  });
+  function readNotifyForm() {
+    const topic = $("n-topic").value.trim().replace(/[^A-Za-z0-9_-]/g, "");
+    $("n-topic").value = topic;
+    return {
+      topic, server: $("n-server").value.trim() || "https://ntfy.sh",
+      limit: +$("n-limit").value || 80, lowSoc: +$("n-low").value || 40, eveningHour: +$("n-hour").value || 21, heatLimit: +$("n-heat").value || 40,
+      onLimit: $("n-onLimit").getAttribute("aria-checked") === "true", onAux: $("n-onAux").getAttribute("aria-checked") === "true",
+      onHeat: $("n-onHeat").getAttribute("aria-checked") === "true",
+      onMorning: $("n-onMorning").getAttribute("aria-checked") === "true", onQuiet: $("n-onQuiet").getAttribute("aria-checked") === "true",
+      morningHour: Math.min(23, Math.max(0, +$("n-mhour").value || 7)), quietFrom: Math.min(23, Math.max(0, +$("n-qfrom").value)), quietTo: Math.min(23, Math.max(0, +$("n-qto").value)),
+      onEvening: $("n-onEvening").getAttribute("aria-checked") === "true", onJournal: $("n-onJournal").getAttribute("aria-checked") === "true"
+    };
+  }
+  $("n-save").addEventListener("click", async () => {
+    const f = readNotifyForm();
+    const msg = $("n-msg");
+    if (!live) { msg.textContent = "Сохранить можно, когда приложение открыто с мостика."; return; }
+    try {
+      await post("api/notify", { topic: f.topic, server: f.server, limit: f.limit, lowSoc: f.lowSoc, eveningHour: f.eveningHour, heatLimit: f.heatLimit, onLimit: f.onLimit ? 1 : 0, onAux: f.onAux ? 1 : 0, onHeat: f.onHeat ? 1 : 0, onEvening: f.onEvening ? 1 : 0, onJournal: f.onJournal ? 1 : 0,
+        onMorning: f.onMorning ? 1 : 0, morningHour: f.morningHour, onQuiet: f.onQuiet ? 1 : 0, quietFrom: f.quietFrom, quietTo: f.quietTo,
+        ...(foundPlace ? { city: foundPlace.label, lat: foundPlace.lat, lon: foundPlace.lon } : {}) });
+      Object.assign(ncfg, f);
+      if (foundPlace) { Object.assign(ncfg, { city: foundPlace.label, lat: foundPlace.lat, lon: foundPlace.lon, hasLoc: true }); foundPlace = null; }
+      msg.textContent = f.topic ? "Сохранено. Нажмите «Проверить», чтобы получить пробное уведомление." : "Сохранено. Уведомления выключены, пока не задано название канала.";
+      renderHome();
+    } catch (e) { msg.textContent = "Не удалось сохранить: " + (e.message || "нет связи с мостиком"); }
+  });
+  $("n-test").addEventListener("click", async () => {
+    const msg = $("n-msg");
+    msg.textContent = "Отправляю…";
+    try { const r = await api("api/notify/test", { method: "POST" }, 15000); msg.textContent = (await r.text()) + ". Уведомление должно прийти через несколько секунд."; }
+    catch (e) { msg.textContent = e.message || "Не удалось отправить"; }
+  });
+
+  // потянуть главный экран вниз, чтобы обновить
+  const ptr = $("ptr");
+  let pull = null, ptrBusy = false;
+  const onHome = () => !location.hash || location.hash === "#home";
+  function ptrShow(d) {
+    ptr.classList.add("pulling");
+    const k = Math.min(1, d / 90);
+    ptr.style.transform = "translate(-50%, " + (-80 + 90 * k) + "px)";
+    ptr.querySelector("svg").style.transform = "rotate(" + (k * 270) + "deg)";
+    $("ptr-text").textContent = d > 90 ? "Отпустите, чтобы обновить" : "Потяните, чтобы обновить";
+  }
+  function ptrHide() { ptr.classList.remove("pulling", "busy"); ptr.style.transform = ""; ptr.querySelector("svg").style.transform = ""; }
+  async function ptrRefresh() {
+    ptrBusy = true;
+    ptr.classList.remove("pulling"); ptr.classList.add("busy");
+    ptr.style.transform = "translate(-50%, 10px)";
+    $("ptr-text").textContent = "Обновляю…";
+    buzz(8);
+    IDS.forEach((c) => { V3.tries[c] = 0; retryNow(c, true); });   // заодно ещё раз пробуем 3D, если не загрузилась
+    if (live) {
+      const before = (bridge.cars[current] || {}).lastPoll || 0;
+      try {
+        await post("api/poll", { car: current });
+        for (let k = 0; k < 12; k++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          await loadState();
+          if ((bridge.cars[current] || {}).lastPoll > before) break;
+        }
+        await loadHistory(current);
+      } catch (e) {}
+    } else await new Promise((r) => setTimeout(r, 900));
+    introPending = true;
+    render();
+    $("ptr-text").textContent = "Обновлено";
+    setTimeout(() => { ptrHide(); ptrBusy = false; }, 700);
+  }
+  window.addEventListener("touchstart", (e) => {
+    if (ptrBusy || !onHome() || window.scrollY > 0 || $("sheet").classList.contains("open")) return;
+    pull = { x: e.touches[0].clientX, y: e.touches[0].clientY, d: 0 };
+  }, { passive: true });
+  window.addEventListener("touchmove", (e) => {
+    if (!pull) return;
+    const dy = e.touches[0].clientY - pull.y, dx = Math.abs(e.touches[0].clientX - pull.x);
+    if (dx > Math.abs(dy) || dy < 0 || V3.dragging) { pull = null; ptrHide(); return; }
+    pull.d = dy * 0.6;
+    ptrShow(pull.d);
+  }, { passive: true });
+  window.addEventListener("touchend", () => {
+    if (!pull) return;
+    const go = pull.d > 90;
+    pull = null;
+    if (go) ptrRefresh(); else ptrHide();
+  });
+
+  // при возвращении в приложение сразу подтягиваем свежие данные
+  window.addEventListener("focus", () => { IDS.forEach((c) => retryNow(c)); if (live) refreshAll(false); });
+
+  // адаптеры
+  $("scan").addEventListener("click", async () => {
+    scanResults = "busy"; renderSettings();
+    try { const r = await api("api/scan", {}, 45000); scanResults = await r.json(); } catch (e) { scanResults = []; }
+    renderSettings();
+  });
+  $("adapters").parentElement.addEventListener("click", async (e) => {
+    const a = e.target.closest("[data-assign]"), u = e.target.closest("[data-unassign]");
+    try {
+      if (a) { await post("api/assign", { car: a.dataset.assign, addr: a.dataset.addr, type: a.dataset.type }); scanResults = null; }
+      if (u) await post("api/assign", { car: u.dataset.unassign, addr: "", type: 0 });
+      if (a || u) await refreshAll(false);
+    } catch (err) {}
+  });
+
+  // консоль
+  document.querySelectorAll("#con-car button").forEach((b) => b.addEventListener("click", () => { consoleCar = b.dataset.car; renderSettings(); }));
+  $("quick").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) { $("con-in").value = b.dataset.c; sendCmd(); } });
+  $("con-form").addEventListener("submit", (e) => { e.preventDefault(); sendCmd(); });
+  async function sendCmd() {
+    const c = $("con-in").value.trim().toUpperCase();
+    if (!c) return;
+    const out = $("con-out");
+    if (!live) { out.textContent += "> " + c + "\nКонсоль работает только с мостиком.\n\n"; out.scrollTop = out.scrollHeight; return; }
+    $("con-send").disabled = true;
+    out.textContent += "> " + c + " (" + META[consoleCar].name + ")\n";
+    try { const r = await api("api/cmd?car=" + consoleCar + "&c=" + encodeURIComponent(c), {}, 50000); out.textContent += (await r.text()) + "\n\n"; }
+    catch (err) { out.textContent += "Ошибка: " + (err.message || "нет ответа") + "\n\n"; }
+    $("con-send").disabled = false;
+    out.scrollTop = out.scrollHeight;
+  }
+
+  // фото
+  $("photo").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const img = new Image(), url = URL.createObjectURL(f);
+    img.onload = () => {
+      const max = 900, k = Math.min(1, max / Math.max(img.width, img.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      const data = cv.toDataURL("image/jpeg", .82);
+      URL.revokeObjectURL(url);
+      photos[current] = data; store.set("photo-" + current, data);
+      render(); location.hash = "#home";
+    };
+    img.src = url;
+    e.target.value = "";
+  });
+  $("photo-clear").addEventListener("click", () => { delete photos[current]; store.del("photo-" + current); render(); });
+
+  /* ================= запуск ================= */
+  IDS.forEach((c) => { hist[c] = demoHist(c); });
+  journal = store.get("journal-local", []);
+  health = demoHealth();
+  render(); fillNotifyForm(); route();
+  (async () => {
+    try {
+      await loadState();
+      IDS.forEach((c) => { hist[c] = []; });
+      journal = [];
+      health = [];
+      await Promise.all(IDS.map(loadHistory).concat([loadJournal(), loadNotify(), loadHealth()]));
+      render(); fillNotifyForm();
+      setInterval(() => refreshAll(false), 30000);
+      setInterval(() => refreshAll(true), 5 * 60000);
+    } catch (e) { live = false; render(); }
+  })();
+})();
+</script>
