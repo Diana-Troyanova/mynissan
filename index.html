@@ -144,6 +144,11 @@ button.row-btn { width: 100%; font-family: inherit; }
 .howto .li { align-items: flex-start; gap: 12px; }
 .howto .li span:last-child { text-align: right; }
 #ble-card .note { margin: 10px 0 0; }
+#ble-card h2 .muted { font-size: 13px; font-weight: 400; margin-left: 6px; }
+.btn.ghost { background: var(--track); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+#ble-card .btn { padding: 13px 10px; font-size: 14px; white-space: nowrap; }
+#ble-card .btn-row.one { grid-template-columns: 1fr; }
+#ble-row .spinner { display: inline-block; vertical-align: middle; }
 #ble-card .list { margin-top: 6px; }
 .row-btn .grow { flex: 1; min-width: 0; }
 .row-btn .side { font-size: 13px; color: var(--accent-text); white-space: nowrap; }
@@ -464,11 +469,21 @@ input[type="date"].input { color-scheme: dark; }
         <li>На главной нажмите <b>«Подключить адаптер»</b> и выберите его в списке: обычно <b>OBDII</b>, <b>V-LINK</b> или <b>Vgate</b>.</li>
         <li>Если Chrome спросит разрешение на устройства поблизости, разрешите.</li>
       </ol>
-      <p class="muted">В настройках Bluetooth телефона адаптер сопрягать не нужно. Пока он подключён, данные обновляются раз в минуту; обновить сразу — потяните главный экран вниз.</p>
+      <p class="muted">Для Bluetooth LE адаптер в настройках телефона сопрягать не нужно. Пока он подключён, данные обновляются раз в минуту; обновить сразу — потяните главный экран вниз.</p>
+
+      <h3>Если адаптера нет в списке</h3>
+      <p class="muted" style="margin-top:0">Многие адаптеры с надписью «Bluetooth 4.0» на деле работают на обычном Bluetooth, а не на Bluetooth LE. Для них:</p>
+      <ol class="steps">
+        <li>Обновите Chrome в Google Play: нужна версия 137 или новее.</li>
+        <li>В настройках телефона откройте <b>Bluetooth</b>, найдите адаптер в доступных устройствах и сопрягите его. PIN обычно <b>1234</b> или <b>0000</b>.</li>
+        <li>Здесь, в карточке «Адаптер по Bluetooth», нажмите <b>«Обычный Bluetooth»</b> и выберите адаптер.</li>
+      </ol>
+      <p class="muted">Приложение запомнит способ, и дальше кнопка на главной будет подключать сразу.</p>
 
       <h3>Если не получается</h3>
       <div class="list">
-        <div class="li"><span>Адаптера нет в списке</span><span class="muted">включите геолокацию, выньте и вставьте адаптер</span></div>
+        <div class="li"><span>Адаптера нет в списке</span><span class="muted">попробуйте «Обычный Bluetooth»; проверьте геолокацию и огонёк на адаптере</span></div>
+        <div class="li"><span>Был виден, а теперь нет</span><span class="muted">адаптер занят: закройте Car Scanner и Leaf Spy, выключите и включите Bluetooth</span></div>
         <div class="li"><span>Не подключается</span><span class="muted">закройте другие приложения для OBD, перезапустите Bluetooth</span></div>
         <div class="li"><span>«Машина не отвечает»</span><span class="muted">включите READY и потяните экран вниз</span></div>
         <div class="li"><span>У Leaf нет данных батареи</span><span class="muted">адаптер-клон не понимает команды, нужен другой</span></div>
@@ -484,8 +499,9 @@ input[type="date"].input { color-scheme: dark; }
     </details>
 
     <div class="card" id="ble-card" hidden>
-      <div class="card-head"><h2>Адаптер по Bluetooth</h2><button class="mini acc" id="ble-btn">Подключить</button></div>
-      <p class="muted">Телефон подключается к адаптеру сам, когда вы рядом с машиной. Выберите машину сверху, включите READY и нажмите «Подключить». Работает в Chrome на Android.</p>
+      <div class="card-head"><h2>Адаптер по Bluetooth <span class="muted" id="ble-mode"></span></h2></div>
+      <p class="muted">Выберите машину сверху, включите READY и нажмите кнопку. Если адаптера нет в списке Bluetooth LE, попробуйте обычный Bluetooth.</p>
+      <div class="btn-row"><button class="btn" id="ble-btn">Bluetooth LE</button><button class="btn ghost" id="ble-serial">Обычный Bluetooth</button></div>
       <p class="note warn" id="ble-err" hidden></p>
       <div class="list" id="ble-check"></div>
     </div>
@@ -1304,6 +1320,7 @@ input[type="date"].input { color-scheme: dark; }
     if (!live) {
       const mine = ble.car === current;
       if (mine && ble.state === "busy") return ["Подключаюсь к адаптеру…", ""];
+      if (mine && ble.state === "off" && ble.err) return ['<a href="#settings" class="warn-text">Не подключилось — подробнее в настройках</a>', ""];
       const d = direct[current];
       if (mine && ble.state === "on" && d && !d.awake) return ["Адаптер на связи, машина не отвечает", "включите READY"];
       if (!d || !d.lastAwake) return ["", ""];
@@ -2165,7 +2182,10 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= прямое подключение к адаптеру =================
      Без мостика телефон сам подключается к ELM327 по Bluetooth LE (Chrome на Android).
      Команды те же, что у мостика: только чтение, ничего не записывается в блоки машины. */
-  const ble = { state: "off", car: null, dev: null, rx: null, tx: null, buf: "", wait: null, chain: Promise.resolve(), timer: 0, ver: "", check: null, err: "", polling: false };
+  const ble = { state: "off", car: null, mode: "le", dev: null, rx: null, tx: null, port: null, reader: null, buf: "", wait: null, chain: Promise.resolve(), timer: 0, ver: "", check: null, err: "", polling: false };
+  // Многие ELM327 с надписью «Bluetooth 4.0» на деле работают на обычном Bluetooth (SPP).
+  // Их Chrome на Android (с версии 137) открывает как последовательный порт.
+  const SPP = "00001101-0000-1000-8000-00805f9b34fb";
   // каналы, на которых сидят известные BLE-адаптеры ELM327 (китайские клоны, Vgate/vLinker, LELink, OBDLink и др.)
   const BLE_SERVICES = [0xfff0, 0xffe0, 0x18f0, 0xae30, 0xfee7, 0xffb0,
     "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "6e400001-b5a3-f393-e0a9-e50e24dcca9e", "0000fff0-0000-1000-8000-00805f9b34fb"];
@@ -2179,16 +2199,45 @@ input[type="date"].input { color-scheme: dark; }
     if (c.startsWith("AT")) return !/^AT(PP|MA|MR|MT|BD|WS)/.test(c);
     return ["01", "02", "03", "06", "09", "21", "22"].includes(c.slice(0, 2));
   }
-  function bleAvailable() {
-    if (!window.isSecureContext || !navigator.bluetooth) return "Нужен Chrome на Android и приложение, открытое по адресу https://diana-troyanova.github.io/mynissan/";
+  const SITE = "https://diana-troyanova.github.io/mynissan/";
+  function bleAvailable(mode) {
+    if (!window.isSecureContext) return "Откройте приложение в Chrome по адресу " + SITE;
+    if (mode === "serial" && !navigator.serial) return "Обычный Bluetooth в браузере работает в Chrome 137 и новее. Обновите Chrome в Google Play и откройте приложение по адресу " + SITE;
+    if (mode !== "serial" && !navigator.bluetooth) return "Нужен Chrome на Android и приложение, открытое по адресу " + SITE;
     return "";
+  }
+  // чтение из порта обычного Bluetooth: всё, что пришло, складываем в тот же буфер
+  async function serialReadLoop(port) {
+    const dec = new TextDecoder();
+    while (ble.port === port && port.readable) {
+      const reader = port.readable.getReader();
+      ble.reader = reader;
+      let ended = false;
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) { ended = true; break; }
+          ble.buf += dec.decode(value, { stream: true });
+          if (ble.wait) ble.wait();
+        }
+      } catch (e) { ended = true; }
+      finally { try { reader.releaseLock(); } catch (e) {} }
+      if (ended) break;   // порт закрыт или связь оборвалась — не крутимся впустую
+    }
+    if (ble.port === port) onBleGone();
   }
   function onBleData(e) {
     ble.buf += new TextDecoder().decode(e.target.value);
     if (ble.wait) ble.wait();
   }
   async function bleWrite(text) {
-    const data = new TextEncoder().encode(text), ch = ble.tx;
+    const data = new TextEncoder().encode(text);
+    if (ble.port) {
+      const w = ble.port.writable.getWriter();
+      try { await w.write(data); } finally { w.releaseLock(); }
+      return;
+    }
+    const ch = ble.tx;
     for (let i = 0; i < data.length; i += 20) {
       const part = data.slice(i, i + 20);
       if (ch.properties.writeWithoutResponse && ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(part);
@@ -2199,7 +2248,7 @@ input[type="date"].input { color-scheme: dark; }
   // одна команда адаптеру; ждём приглашение «>», команды идут строго по очереди
   function elm(cmd, timeout) {
     const run = () => new Promise((resolve) => {
-      if (!ble.tx) return resolve("NOT CONNECTED");
+      if (!ble.tx && !ble.port) return resolve("NOT CONNECTED");
       ble.buf = "";
       let done = false, t = 0;
       const finish = (timedOut) => {
@@ -2220,39 +2269,55 @@ input[type="date"].input { color-scheme: dark; }
   }
   function bleCleanup() {
     clearInterval(ble.timer); ble.timer = 0;
-    const dev = ble.dev;
-    ble.dev = ble.rx = ble.tx = null; ble.state = "off"; ble.polling = false;
+    const dev = ble.dev, port = ble.port, reader = ble.reader;
+    ble.dev = ble.rx = ble.tx = ble.port = ble.reader = null; ble.state = "off"; ble.polling = false;
     if (ble.wait) ble.wait = null;
+    if (reader) reader.cancel().catch(() => {});
+    if (port) setTimeout(() => port.close().catch(() => {}), 150);
     if (dev) { dev.removeEventListener("gattserverdisconnected", onBleGone); try { if (dev.gatt.connected) dev.gatt.disconnect(); } catch (e) {} }
   }
   function onBleGone() { bleCleanup(); ble.err = "Связь с адаптером пропала. Подойдите ближе к машине и подключитесь снова."; render(); }
-  async function bleConnect(car) {
-    const why = bleAvailable();
-    if (why) { ble.err = why; ble.car = car; render(); return; }
+  async function bleConnect(car, mode) {
+    mode = mode || store.get("ble-mode-" + car, "le");
+    const why = bleAvailable(mode);
+    if (why) { ble.err = why; ble.car = car; ble.mode = mode; render(); return; }
     bleCleanup();
-    Object.assign(ble, { state: "busy", car, err: "", check: null, ver: "" });
+    Object.assign(ble, { state: "busy", car, mode, err: "", check: null, ver: "" });
     render();
     try {
-      const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: BLE_SERVICES });
-      ble.dev = dev;
-      dev.addEventListener("gattserverdisconnected", onBleGone);
-      const server = await dev.gatt.connect();
-      // ищем пару «уведомления + запись» — так у BLE-адаптеров устроен последовательный канал
-      let rx = null, tx = null;
-      for (const sv of await server.getPrimaryServices()) {
-        let chs; try { chs = await sv.getCharacteristics(); } catch (e) { continue; }
-        const n = chs.find((c) => c.properties.notify || c.properties.indicate);
-        const w = chs.find((c) => c.properties.writeWithoutResponse || c.properties.write);
-        if (n && w) { rx = n; tx = w; break; }
+      if (mode === "serial") {
+        // обычный Bluetooth: адаптер заранее сопрягается в настройках телефона
+        const port = await navigator.serial.requestPort({ allowedBluetoothServiceClassIds: [SPP], filters: [{ bluetoothServiceClassId: SPP }] });
+        await port.open({ baudRate: 38400 });
+        ble.port = port;
+        serialReadLoop(port);
+      } else {
+        const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: BLE_SERVICES });
+        ble.dev = dev;
+        dev.addEventListener("gattserverdisconnected", onBleGone);
+        const server = await dev.gatt.connect();
+        // ищем пару «уведомления + запись» — так у BLE-адаптеров устроен последовательный канал
+        let rx = null, tx = null;
+        for (const sv of await server.getPrimaryServices()) {
+          let chs; try { chs = await sv.getCharacteristics(); } catch (e) { continue; }
+          const n = chs.find((c) => c.properties.notify || c.properties.indicate);
+          const w = chs.find((c) => c.properties.writeWithoutResponse || c.properties.write);
+          if (n && w) { rx = n; tx = w; break; }
+        }
+        if (!rx) throw Object.assign(new Error("nochan"), { name: "NoChannel" });
+        ble.rx = rx; ble.tx = tx;
+        rx.addEventListener("characteristicvaluechanged", onBleData);
+        await rx.startNotifications();
       }
-      if (!rx) throw Object.assign(new Error("nochan"), { name: "NoChannel" });
-      ble.rx = rx; ble.tx = tx;
-      rx.addEventListener("characteristicvaluechanged", onBleData);
-      await rx.startNotifications();
-      await elm("ATZ", 3000);
+      const hello = await elm("ATZ", 3000);
+      if (/TIMEOUT|NOT CONNECTED/.test(hello) && !/ELM|OK/i.test(hello)) {
+        const again = await elm("ATI", 3000);   // некоторые клоны молчат на сброс, но отвечают на ATI
+        if (!/ELM|OBD|V\d/i.test(again)) throw Object.assign(new Error("silent"), { name: "Silent" });
+      }
       for (const c of ["ATE0", "ATL0", "ATS1", "ATH1", "ATSP6", "ATSTFF"]) await elm(c);
       ble.ver = (await elm("ATI")).split("\n").filter((l) => !/OK|TIMEOUT/.test(l)).pop() || "";
       ble.state = "on";
+      store.set("ble-mode-" + car, mode);   // в следующий раз кнопка на главной сразу выберет этот способ
       buzz(10);
       await blePoll();
       clearInterval(ble.timer);
@@ -2260,11 +2325,17 @@ input[type="date"].input { color-scheme: dark; }
     } catch (e) {
       const name = e && e.name;
       bleCleanup();
-      ble.err = name === "NotFoundError" ? ""                                   // закрыли список устройств
-        : name === "SecurityError" ? "Bluetooth на этой странице запрещён. Откройте приложение по адресу https://diana-troyanova.github.io/mynissan/ в Chrome."
+      ble.err = name === "NotFoundError"
+          ? (mode === "serial"
+            ? "Адаптера нет в списке? Сначала сопрягите его в настройках Bluetooth телефона: PIN обычно 1234 или 0000. Потом снова нажмите «Обычный Bluetooth»."
+            : "Адаптера нет в списке? Скорее всего, он работает на обычном Bluetooth. Нажмите «Обычный Bluetooth».")
+        : name === "SecurityError" ? "Bluetooth на этой странице запрещён. Откройте приложение в Chrome по адресу " + SITE
         : name === "NoChannel" ? "Это устройство не похоже на адаптер ELM327. Выберите другое из списка."
+        : name === "Silent" ? "Адаптер подключился, но не отвечает. Выньте его из разъёма, вставьте снова и повторите."
         : name === "NotAllowedError" ? "Разрешите Chrome доступ к Bluetooth и устройствам поблизости."
+        : name === "NetworkError" || name === "InvalidStateError" ? "Не удалось открыть связь с адаптером. Возможно, он занят другим приложением: закройте Car Scanner или Leaf Spy и попробуйте ещё раз."
         : "Не удалось подключиться. Проверьте, что машина включена, адаптер светится, и попробуйте ещё раз.";
+      ble.mode = mode;
     }
     render();
   }
@@ -2316,8 +2387,12 @@ input[type="date"].input { color-scheme: dark; }
     $("ble-text").textContent = busy ? "Подключаюсь к адаптеру…" : on ? (mine ? "Адаптер подключён" : "Адаптер в " + META[ble.car].name) : "Подключить адаптер";
     $("ble-side").innerHTML = busy ? '<span class="spinner"></span>' : on ? "отключить" : META[current].name;
     $("ble-side").className = "side" + (on ? " off" : "");
-    $("ble-btn").textContent = on ? "Отключить" : busy ? "Подключаю…" : "Подключить";
+    $("ble-btn").textContent = on ? "Отключить" : busy ? "Подключаю…" : "Bluetooth LE";
     $("ble-btn").disabled = busy;
+    $("ble-serial").hidden = on;
+    $("ble-serial").parentElement.classList.toggle("one", on);
+    $("ble-serial").disabled = busy;
+    $("ble-mode").textContent = on ? (ble.mode === "serial" ? "обычный Bluetooth" : "Bluetooth LE") : "";
     $("ble-err").textContent = ble.err; $("ble-err").hidden = !ble.err;
     const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
     const ck = ble.check;
@@ -2328,12 +2403,13 @@ input[type="date"].input { color-scheme: dark; }
   }
   function bleToggle() { if (ble.state === "on") bleDisconnect(); else if (ble.state === "off") bleConnect(current); }
   $("ble-row").addEventListener("click", bleToggle);
-  $("ble-btn").addEventListener("click", bleToggle);
+  $("ble-btn").addEventListener("click", () => { if (ble.state === "on") bleDisconnect(); else if (ble.state === "off") bleConnect(current, "le"); });
+  $("ble-serial").addEventListener("click", () => { if (ble.state === "off") bleConnect(current, "serial"); });
 
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-10-30-5";
+  const BUILD = "2026-11-01-1";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
