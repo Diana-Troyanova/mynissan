@@ -141,8 +141,9 @@ button.row-btn { width: 100%; font-family: inherit; }
 .howto .steps { margin: 0; padding-left: 22px; display: grid; gap: 8px; font-size: 14px; }
 .howto .steps li::marker { color: var(--muted); font-family: var(--f-num); }
 .howto p.muted { margin: 10px 0 0; }
-.howto .li { align-items: flex-start; gap: 12px; }
-.howto .li span:last-child { text-align: right; }
+.howto .li { flex-direction: column; align-items: flex-start; gap: 2px; }
+.howto .li span:first-child { font-weight: 500; }
+.howto .li span:last-child { text-align: left; }
 #ble-card .note { margin: 10px 0 0; }
 #ble-card h2 .muted { font-size: 13px; font-weight: 400; margin-left: 6px; }
 .btn.ghost { background: var(--track); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
@@ -472,21 +473,28 @@ input[type="date"].input { color-scheme: dark; }
       <p class="muted">Для Bluetooth LE адаптер в настройках телефона сопрягать не нужно. Пока он подключён, данные обновляются раз в минуту; обновить сразу — потяните главный экран вниз.</p>
 
       <h3>Если адаптера нет в списке</h3>
-      <p class="muted" style="margin-top:0">Многие адаптеры с надписью «Bluetooth 4.0» на деле работают на обычном Bluetooth, а не на Bluetooth LE. Для них:</p>
+      <p class="muted" style="margin-top:0">Скорее всего, адаптер работает на обычном Bluetooth, а не на Bluetooth LE. Так устроены многие дешёвые ELM327 с надписью «Bluetooth 4.0». Подключите его по-другому:</p>
       <ol class="steps">
-        <li>Обновите Chrome в Google Play: нужна версия 137 или новее.</li>
-        <li>В настройках телефона откройте <b>Bluetooth</b>, найдите адаптер в доступных устройствах и сопрягите его. PIN обычно <b>1234</b> или <b>0000</b>.</li>
-        <li>Здесь, в карточке «Адаптер по Bluetooth», нажмите <b>«Обычный Bluetooth»</b> и выберите адаптер.</li>
+        <li>Обновите <b>Chrome</b> в Google Play: нужна версия 137 или новее.</li>
+        <li>Откройте настройки телефона → <b>Bluetooth</b>, найдите адаптер среди доступных устройств и сопрягите его. PIN обычно <b>1234</b> или <b>0000</b>.</li>
+        <li>Вернитесь сюда, в «Настройки», к карточке <b>«Адаптер по Bluetooth»</b>. Вверху выберите машину и включите в ней <b>READY</b>.</li>
+        <li>Нажмите <b>«Обычный Bluetooth»</b> и выберите адаптер в списке.</li>
       </ol>
-      <p class="muted">Приложение запомнит способ, и дальше кнопка на главной будет подключать сразу.</p>
+      <p class="muted">Приложение запомнит этот способ, и дальше кнопка «Подключить адаптер» на главной будет подключать сразу.</p>
+
+      <h3>Если адаптера нет и в настройках Bluetooth телефона</h3>
+      <ol class="steps">
+        <li>Посмотрите, горит ли на адаптере огонёк. Если нет — разъём без питания: включите в машине <b>READY</b> и вставьте адаптер до упора.</li>
+        <li>Адаптер может быть занят другим приложением. Закройте Car Scanner, Leaf Spy и другие программы для OBD, выключите и снова включите Bluetooth на телефоне.</li>
+        <li>Выньте адаптер из разъёма на 10 секунд и вставьте обратно.</li>
+      </ol>
 
       <h3>Если не получается</h3>
       <div class="list">
-        <div class="li"><span>Адаптера нет в списке</span><span class="muted">попробуйте «Обычный Bluetooth»; проверьте геолокацию и огонёк на адаптере</span></div>
-        <div class="li"><span>Был виден, а теперь нет</span><span class="muted">адаптер занят: закройте Car Scanner и Leaf Spy, выключите и включите Bluetooth</span></div>
-        <div class="li"><span>Не подключается</span><span class="muted">закройте другие приложения для OBD, перезапустите Bluetooth</span></div>
-        <div class="li"><span>«Машина не отвечает»</span><span class="muted">включите READY и потяните экран вниз</span></div>
-        <div class="li"><span>У Leaf нет данных батареи</span><span class="muted">адаптер-клон не понимает команды, нужен другой</span></div>
+        <div class="li"><span>Подключился, но «машина не отвечает»</span><span class="muted">включите READY и потяните главный экран вниз</span></div>
+        <div class="li"><span>Ariya на связи, а заряда нет</span><span class="muted">машина не отдаёт заряд стандартной командой — команды подберём через консоль ниже</span></div>
+        <div class="li"><span>У Leaf нет данных батареи</span><span class="muted">адаптер-клон не понимает нужные команды, нужен другой</span></div>
+        <div class="li"><span>Пишет «Bluetooth запрещён»</span><span class="muted">откройте приложение в Chrome по адресу diana-troyanova.github.io/mynissan</span></div>
       </div>
 
       <h3>Через мостик дома</h3>
@@ -2409,7 +2417,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-01-1";
+  const BUILD = "2026-11-01-2";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
