@@ -149,6 +149,12 @@ button.row-btn { width: 100%; font-family: inherit; }
 .btn.ghost { background: var(--track); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
 #ble-card .btn { padding: 13px 10px; font-size: 14px; white-space: nowrap; }
 #ble-card .btn-row.one { grid-template-columns: 1fr; }
+#ble-diag { margin-top: 4px; }
+#diag-out { display: flex; flex-direction: column; gap: 10px; }
+#diag-out[hidden] { display: none; }
+#diag-out .note { margin: 0; }
+#diag-out .li span:last-child { text-align: right; }
+#diag-copy { align-self: flex-start; }
 #ble-row .spinner { display: inline-block; vertical-align: middle; }
 #ble-card .list { margin-top: 6px; }
 .row-btn .grow { flex: 1; min-width: 0; }
@@ -489,6 +495,16 @@ input[type="date"].input { color-scheme: dark; }
         <li>Выньте адаптер из разъёма на 10 секунд и вставьте обратно.</li>
       </ol>
 
+      <h3>Если адаптер подключился, а данных нет</h3>
+      <p class="muted" style="margin-top:0">Напряжение 12 В адаптер меряет сам, без машины. Если видно только его — адаптер не может договориться с машиной. Нажмите <b>«Диагностика»</b> в карточке «Адаптер по Bluetooth»: приложение проверит адаптер и машину и скажет, в чём дело. Частые причины:</p>
+      <div class="list">
+        <div class="li"><span>Машина не заведена</span><span class="muted">заведите её, как перед поездкой: в спящей машине блок батареи молчит</span></div>
+        <div class="li"><span>Плохой контакт в разъёме</span><span class="muted">вставьте адаптер до упора, выньте на 10 секунд и вставьте снова</span></div>
+        <div class="li"><span>Адаптер-клон «v2.1»</span><span class="muted">не понимает нужные команды — диагностика их покажет; поможет адаптер получше, например Vgate iCar Pro или vLinker</span></div>
+        <div class="li"><span>Телефон заснул</span><span class="muted">пока идёт опрос, держите экран включённым и приложение открытым</span></div>
+        <div class="li"><span>Другие команды у вашей версии машины</span><span class="muted">нажмите «Скопировать отчёт» после диагностики и пришлите его</span></div>
+      </div>
+
       <h3>Если не получается</h3>
       <div class="list">
         <div class="li"><span>Подключился, но «машина не отвечает»</span><span class="muted">заведите машину, как перед поездкой, и потяните главный экран вниз</span></div>
@@ -512,6 +528,13 @@ input[type="date"].input { color-scheme: dark; }
       <div class="btn-row"><button class="btn" id="ble-btn">Bluetooth LE</button><button class="btn ghost" id="ble-serial">Обычный Bluetooth</button></div>
       <p class="note warn" id="ble-err" hidden></p>
       <div class="list" id="ble-check"></div>
+      <button class="btn ghost" id="ble-diag" hidden>Диагностика</button>
+      <div id="diag-out" hidden>
+        <div class="list" id="diag-rows"></div>
+        <p class="note" id="diag-verdict"></p>
+        <button class="mini" id="diag-copy">Скопировать отчёт</button>
+        <pre class="console-out" id="diag-log" hidden></pre>
+      </div>
     </div>
 
     <div class="card" id="notify-card">
@@ -707,7 +730,13 @@ input[type="date"].input { color-scheme: dark; }
   const s32 = (b, i) => (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
   function isoTp(raw, rx) {
     if (!raw) return null;
-    const lines = raw.split(/[\n|]+/).map((l) => l.trim()).filter(Boolean);
+    const rxc = rx.replace(/ /g, "");
+    const lines = raw.split(/[\n|]+/).map((l) => l.trim()).filter(Boolean).map((l) => {
+      const u = l.toUpperCase();
+      if (!/^[0-9A-F]{6,}$/.test(u)) return l;   // строка слитно, без пробелов: «7BB1029610100…»
+      const head = u.startsWith(rxc) ? rx + " " : "", rest = head ? u.slice(rxc.length) : u;
+      return head + (rest.match(/../g) || []).join(" ");
+    });
     let frames = lines.filter((l) => l.toUpperCase().startsWith(rx + " ")).map((l) => hexBytes(l.slice(rx.length)));
     if (!frames.length) frames = lines.filter((l) => /^[0-9A-F]{2}( [0-9A-F]{2})+$/i.test(l)).map(hexBytes);
     let out = [], total = null;
@@ -2385,7 +2414,51 @@ input[type="date"].input { color-scheme: dark; }
     }
     render();
   }
-  function bleDisconnect() { bleCleanup(); ble.err = ""; render(); }
+  function bleDisconnect() { bleCleanup(); ble.err = ""; ble.diag = null; render(); }
+  // Диагностика связи с машиной: только чтение, по шагам, с понятным выводом
+  async function bleDiag() {
+    if (ble.state !== "on" || ble.polling) return;
+    ble.polling = true; ble.diag = { busy: true, rows: [], log: "" };
+    renderBle();
+    const car = ble.car, rows = ble.diag.rows, log = [];
+    const ask = async (c, t) => { const r = await elm(c, t); log.push("> " + c + "\n" + r); return r; };
+    const bad = (r) => /\?|ERROR|TIMEOUT|NOT CONNECTED/.test(r);
+    try {
+      const ver = await ask("ATI"); await ask("AT@1");
+      rows.push(["Адаптер", ver.split("\n").pop() || "—", !bad(ver)]);
+      const volt = await ask("ATRV");
+      rows.push(["Аккумулятор 12 В", parseFloat(volt) ? fmt(parseFloat(volt), 1) + " В" : "—", parseFloat(volt) > 11.5]);
+      // поддерживает ли адаптер команды, без которых не прочитать блок батареи
+      const need = car === "leaf" ? ["ATSP6", "ATSH79B", "ATFCSH79B", "ATFCSD300000", "ATFCSM1", "ATCRA7BB"]
+        : ["ATSP7", "ATCP18", "ATSHDADBF1", "ATCRA18DAF1DB", "ATFCSH18DADBF1", "ATFCSD300000", "ATFCSM1"];
+      const unsupported = [];
+      for (const c of need) { const r = await ask(c); if (bad(r)) unsupported.push(c); }
+      rows.push(["Нужные команды адаптера", unsupported.length ? "не понимает: " + unsupported.join(", ") : "все понимает", !unsupported.length]);
+      // запрос к блоку батареи
+      const q = car === "leaf" ? "2101" : "229001";
+      const r1 = await ask(q, 5000);
+      const v = decodeInto(car, car === "leaf" ? { "2101": r1 } : { "229001": r1 }, {});
+      const battOk = v.soc != null;
+      rows.push(["Блок батареи (" + q + ")", battOk ? "отвечает, заряд " + Math.round(v.soc) + "%" : isNoData(r1) ? "молчит" : "ответ непонятный", battOk]);
+      // стандартный OBD: отвечает ли машина вообще
+      await ask("ATSP0");
+      const r0 = await ask("0100", 8000);
+      const obdOk = /41\s?00/.test(r0.toUpperCase());
+      const dp = obdOk ? (await ask("ATDPN")).split("\n").pop() : "";
+      rows.push(["Стандартный OBD (0100)", obdOk ? "отвечает" + (dp ? ", протокол " + dp.replace(/^A/, "") : "") : "молчит", obdOk]);
+      let verdict;
+      if (battOk) verdict = "Всё в порядке: блок батареи отвечает. Данные появятся на главной.";
+      else if (unsupported.length) verdict = "Адаптер не понимает команды, без которых батарею не прочитать. Обычно так у дешёвых клонов «v2.1». Поможет другой адаптер: например Vgate iCar Pro BLE 4.0 или vLinker.";
+      else if (!obdOk) verdict = "Машина не отвечает даже на стандартный запрос OBD. Проверьте, что машина заведена, как перед поездкой, и адаптер вставлен до упора; выньте его на 10 секунд и вставьте снова. Если не поможет — адаптер не достаёт до шины машины, нужен другой.";
+      else verdict = "Машина отвечает на стандартный OBD, а блок батареи — нет. Значит, у вашей машины другие команды. Нажмите «Скопировать отчёт» и пришлите его мне — подберу.";
+      ble.diag.verdict = verdict;
+    } catch (e) { ble.diag.verdict = "Диагностика прервалась: связь с адаптером пропала."; }
+    ble.diag.log = log.join("\n\n");
+    ble.diag.busy = false; ble.polling = false;
+    renderBle();
+    blePoll();   // вернуть адаптер к обычному опросу
+  }
+
   // опрос машины: то же самое, что делает мостик
   async function blePoll() {
     if (ble.state !== "on" || ble.polling) return;
@@ -2440,6 +2513,7 @@ input[type="date"].input { color-scheme: dark; }
     $("ble-serial").disabled = busy;
     $("ble-mode").textContent = on ? (ble.mode === "serial" ? "обычный Bluetooth" : "Bluetooth LE") : "";
     $("ble-err").textContent = ble.err; $("ble-err").hidden = !ble.err;
+    renderDiag();
     const li = (a, b) => '<div class="li"><span class="muted">' + a + '</span><span class="num">' + b + "</span></div>";
     const ck = ble.check;
     $("ble-check").innerHTML = ck && ble.car ? li("Машина", META[ble.car].name) + li("Адаптер", esc(ck.ver || "—")) +
@@ -2447,15 +2521,35 @@ input[type="date"].input { color-scheme: dark; }
       li("Блок батареи", ck.answer ? '<span class="ok-text">отвечает</span>' : '<span class="warn-text">не отвечает</span>') +
       (ck.soc != null ? li("Заряд", Math.round(ck.soc) + "%") : "") : "";
   }
+  function renderDiag() {
+    const d = ble.diag, on = ble.state === "on";
+    $("ble-diag").hidden = !on; $("ble-diag").disabled = !!(d && d.busy);
+    $("ble-diag").innerHTML = d && d.busy ? '<span class="spinner"></span>Проверяю…' : "Диагностика";
+    const box = $("diag-out");
+    box.hidden = !d || d.busy;
+    if (!d || d.busy) return;
+    const li = (a, b, ok) => '<div class="li"><span class="muted">' + a + '</span><span class="' + (ok ? "ok-text" : "warn-text") + '">' + esc(b) + "</span></div>";
+    $("diag-rows").innerHTML = d.rows.map((r) => li(r[0], r[1], r[2])).join("");
+    $("diag-verdict").textContent = d.verdict || "";
+  }
   function bleToggle() { if (ble.state === "on") bleDisconnect(); else if (ble.state === "off") bleConnect(current); }
   $("ble-row").addEventListener("click", bleToggle);
   $("ble-btn").addEventListener("click", () => { if (ble.state === "on") bleDisconnect(); else if (ble.state === "off") bleConnect(current, "le"); });
   $("ble-serial").addEventListener("click", () => { if (ble.state === "off") bleConnect(current, "serial"); });
+  $("ble-diag").addEventListener("click", bleDiag);
+  $("diag-copy").addEventListener("click", async () => {
+    const d = ble.diag; if (!d) return;
+    const text = "MyNissan, диагностика " + (ble.car ? META[ble.car].name : "") + ", " + new Date().toLocaleString("ru-RU") + "\n" +
+      d.rows.map((r) => r[0] + ": " + r[1]).join("\n") + "\n\n" + d.log;
+    try { await navigator.clipboard.writeText(text); $("diag-copy").textContent = "Скопировано"; }
+    catch (e) { $("diag-log").hidden = false; $("diag-log").textContent = text; $("diag-copy").textContent = "Выделите текст ниже"; }
+    setTimeout(() => { $("diag-copy").textContent = "Скопировать отчёт"; }, 2500);
+  });
 
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-03-3";
+  const BUILD = "2026-11-03-4";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
