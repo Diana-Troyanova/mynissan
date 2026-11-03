@@ -155,6 +155,11 @@ button.row-btn { width: 100%; font-family: inherit; }
 #diag-out .note { margin: 0; }
 #diag-out .li span:last-child { text-align: right; }
 #diag-copy { align-self: flex-start; }
+#push-phone, #push-bridge, #n-events { display: flex; flex-direction: column; gap: 14px; }
+#push-phone[hidden], #push-bridge[hidden], #n-events[hidden] { display: none; }
+#push-phone .btn { padding: 13px 10px; font-size: 14px; white-space: nowrap; }
+#push-copy { align-self: flex-start; }
+#push-msg:empty { display: none; }
 #ble-row .spinner { display: inline-block; vertical-align: middle; }
 #ble-card .list { margin-top: 6px; }
 .row-btn .grow { flex: 1; min-width: 0; }
@@ -520,6 +525,15 @@ input[type="date"].input { color-scheme: dark; }
         <li>Здесь, в настройках, в карточке «Адаптеры» нажмите <b>«Найти»</b> и назначьте адаптер каждой машине.</li>
       </ol>
       <p class="muted">Мостик сам опрашивает машины круглые сутки, ведёт историю и присылает уведомления.</p>
+
+      <h3>Уведомления на телефон</h3>
+      <ol class="steps">
+        <li>Откройте приложение в <b>Chrome</b> по адресу <b>diana-troyanova.github.io/mynissan</b> → «Настройки» → «Уведомления».</li>
+        <li>Нажмите <b>«Включить»</b> и разрешите уведомления.</li>
+        <li>Будучи дома в Wi-Fi, нажмите <b>«Передать мостику»</b>. Откроется страница мостика — нажмите там <b>«Подключить»</b>. Придёт проверочное уведомление.</li>
+        <li>Какие события присылать, выберите в приложении, открытом с мостика (<b>mynissan.local</b>).</li>
+      </ol>
+      <p class="muted">Уведомления приходят где угодно, не только дома: мостик отправляет их через встроенный канал Android. Можно подключить до 4 телефонов.</p>
     </details>
 
     <div class="card" id="ble-card" hidden>
@@ -539,12 +553,24 @@ input[type="date"].input { color-scheme: dark; }
 
     <div class="card" id="notify-card">
       <h2>Уведомления</h2>
-      <p class="muted">Приходят через бесплатное приложение ntfy. Установите его из Google Play или F-Droid, нажмите «+» и введите название канала ниже.</p>
-      <div class="field">
-        <label for="n-topic">Название канала</label>
-        <div class="cmd-row"><input class="input" id="n-topic" autocomplete="off" spellcheck="false" placeholder="например, mynissan-7f3k9q" style="text-transform:none;font-family:var(--f-body)"><button class="mini" id="n-gen" type="button">Придумать</button></div>
-        <span class="muted">Название работает как пароль: кто его знает, тот видит уведомления. Не делайте его простым.</span>
+      <p class="muted">Приходят прямо на телефон как обычные уведомления Android — без сторонних приложений и сервисов. Мостик сам шифрует каждое уведомление, прочитать его может только ваш телефон.</p>
+
+      <div id="push-phone" hidden>
+        <div class="list"><div class="li"><span>Этот телефон</span><span class="side" id="push-state">не подключён</span></div></div>
+        <div class="btn-row"><button class="btn" id="push-on" type="button">Включить</button><button class="btn ghost" id="push-send" type="button">Передать мостику</button></div>
+        <div class="field">
+          <label for="push-host">Адрес мостика в домашнем Wi-Fi</label>
+          <input class="input" id="push-host" autocomplete="off" spellcheck="false" inputmode="url" placeholder="mynissan.local или 192.168.1.50" style="text-transform:none;font-family:var(--f-body)">
+          <span class="muted">Телефон должен быть в домашнем Wi-Fi. Откроется страница мостика — там нажмите «Подключить».</span>
+        </div>
+        <button class="mini" id="push-copy" type="button">Скопировать код</button>
       </div>
+      <div id="push-bridge" hidden>
+        <div class="list" id="push-list"></div>
+      </div>
+      <p class="muted" id="push-msg" aria-live="polite"></p>
+
+      <div id="n-events">
       <div class="switch-row"><div><div>Зарядка дошла до лимита</div><div class="inline muted">лимит <input class="input" id="n-limit" type="number" min="50" max="100" aria-label="Лимит заряда, %"> %</div></div><button class="switch" id="n-onLimit" role="switch" aria-checked="true" aria-label="Зарядка дошла до лимита"></button></div>
       <div class="switch-row"><div><div>Просел аккумулятор 12 В</div><div class="muted">ниже 11,9 В</div></div><button class="switch" id="n-onAux" role="switch" aria-checked="true" aria-label="Просел аккумулятор 12 В"></button></div>
       <div class="switch-row"><div><div>Перегрелась батарея Leaf</div><div class="inline muted">выше <input class="input" id="n-heat" type="number" min="30" max="60" aria-label="Порог температуры, °C"> °C</div></div><button class="switch" id="n-onHeat" role="switch" aria-checked="true" aria-label="Перегрелась батарея Leaf"></button></div>
@@ -557,12 +583,10 @@ input[type="date"].input { color-scheme: dark; }
         <span class="muted" id="n-place"></span>
       </div>
       <div class="switch-row"><div><div>Тихие часы</div><div class="inline muted">с <input class="input" id="n-qfrom" type="number" min="0" max="23" aria-label="Начало тихих часов"> до <input class="input" id="n-qto" type="number" min="0" max="23" aria-label="Конец тихих часов"> ч</div><div class="muted">Обычные уведомления придут утром, срочные — сразу</div></div><button class="switch" id="n-onQuiet" role="switch" aria-checked="true" aria-label="Тихие часы"></button></div>
-      <details>
-        <summary class="muted" style="cursor:pointer">Свой сервер ntfy</summary>
-        <div class="field" style="margin-top:10px"><label for="n-server">Адрес сервера</label><input class="input" id="n-server" autocomplete="off" spellcheck="false" placeholder="https://ntfy.sh"></div>
-      </details>
       <div class="btn-row"><button class="btn" id="n-save">Сохранить</button><button class="btn soft" id="n-test">Проверить</button></div>
       <p class="muted" id="n-msg" aria-live="polite"></p>
+      </div>
+      <p class="muted" id="n-events-note" hidden>Какие события присылать, настраивается в приложении, открытом с мостика (mynissan.local), — там же кнопка «Проверить».</p>
     </div>
 
     <div class="card">
@@ -1442,7 +1466,7 @@ input[type="date"].input { color-scheme: dark; }
       $("due-side").className = "side" + (due.days <= 7 ? " warn" : "");
     }
     renderBle();
-    const on = live && ncfg.topic;
+    const on = live ? ncfg.phones > 0 : !!store.get("push-code", null);
     $("notify-side").textContent = on ? "включены" : "не настроены";
     $("notify-side").className = "side" + (on ? "" : " off");
   }
@@ -1723,8 +1747,6 @@ input[type="date"].input { color-scheme: dark; }
 
   /* ================= настройки ================= */
   function fillNotifyForm() {
-    $("n-topic").value = ncfg.topic || "";
-    $("n-server").value = ncfg.server && ncfg.server !== "https://ntfy.sh" ? ncfg.server : "";
     $("n-limit").value = ncfg.limit; $("n-low").value = ncfg.lowSoc; $("n-hour").value = ncfg.eveningHour; $("n-heat").value = ncfg.heatLimit;
     $("n-mhour").value = ncfg.morningHour; $("n-qfrom").value = ncfg.quietFrom; $("n-qto").value = ncfg.quietTo;
     $("n-city").value = ncfg.city || "";
@@ -1733,6 +1755,7 @@ input[type="date"].input { color-scheme: dark; }
   }
   function renderSettings() {
     $("n-test").disabled = !live;
+    renderPush();
 
     // адаптеры
     $("adapters").innerHTML = IDS.map((c) => {
@@ -1869,7 +1892,10 @@ input[type="date"].input { color-scheme: dark; }
       }).filter((x) => x && x.soh != null).sort((a, b) => a.t - b.t);
     } catch (e) {}
   }
-  async function loadNotify() { try { const r = await api("api/notify", {}, 5000); ncfg = Object.assign(ncfg, await r.json()); } catch (e) {} }
+  async function loadNotify() {
+    try { const r = await api("api/notify", {}, 5000); ncfg = Object.assign(ncfg, await r.json()); } catch (e) {}
+    try { const r = await api("api/push", {}, 5000); pushPhones = await r.json(); ncfg.phones = pushPhones.length; } catch (e) {}
+  }
   async function refreshAll(withHist) {
     try { await loadState(); if (withHist) await Promise.all(IDS.map(loadHistory)); } catch (e) {}
     render();
@@ -2075,14 +2101,6 @@ input[type="date"].input { color-scheme: dark; }
   SWITCHES.forEach((k) => $("n-" + k).addEventListener("click", (e) => {
     const b = e.currentTarget; b.setAttribute("aria-checked", b.getAttribute("aria-checked") !== "true");
   }));
-  $("n-gen").addEventListener("click", () => {
-    const abc = "abcdefghijkmnpqrstuvwxyz23456789";
-    let s = "mynissan-";
-    const rnd = new Uint32Array(10);
-    try { crypto.getRandomValues(rnd); } catch (e) { for (let i = 0; i < 10; i++) rnd[i] = Math.floor(Math.random() * 1e9); }
-    for (let i = 0; i < 10; i++) s += abc[rnd[i] % abc.length];
-    $("n-topic").value = s;
-  });
   $("n-find").addEventListener("click", async () => {
     const q = $("n-city").value.trim();
     const out = $("n-place");
@@ -2099,10 +2117,7 @@ input[type="date"].input { color-scheme: dark; }
     } catch (e) { out.textContent = "Не получилось найти город: нужен интернет. Попробуйте ещё раз из дома."; }
   });
   function readNotifyForm() {
-    const topic = $("n-topic").value.trim().replace(/[^A-Za-z0-9_-]/g, "");
-    $("n-topic").value = topic;
     return {
-      topic, server: $("n-server").value.trim() || "https://ntfy.sh",
       limit: +$("n-limit").value || 80, lowSoc: +$("n-low").value || 40, eveningHour: +$("n-hour").value || 21, heatLimit: +$("n-heat").value || 40,
       onLimit: $("n-onLimit").getAttribute("aria-checked") === "true", onAux: $("n-onAux").getAttribute("aria-checked") === "true",
       onHeat: $("n-onHeat").getAttribute("aria-checked") === "true",
@@ -2116,12 +2131,12 @@ input[type="date"].input { color-scheme: dark; }
     const msg = $("n-msg");
     if (!live) { msg.textContent = "Сохранить можно, когда приложение открыто с мостика."; return; }
     try {
-      await post("api/notify", { topic: f.topic, server: f.server, limit: f.limit, lowSoc: f.lowSoc, eveningHour: f.eveningHour, heatLimit: f.heatLimit, onLimit: f.onLimit ? 1 : 0, onAux: f.onAux ? 1 : 0, onHeat: f.onHeat ? 1 : 0, onEvening: f.onEvening ? 1 : 0, onJournal: f.onJournal ? 1 : 0,
+      await post("api/notify", { limit: f.limit, lowSoc: f.lowSoc, eveningHour: f.eveningHour, heatLimit: f.heatLimit, onLimit: f.onLimit ? 1 : 0, onAux: f.onAux ? 1 : 0, onHeat: f.onHeat ? 1 : 0, onEvening: f.onEvening ? 1 : 0, onJournal: f.onJournal ? 1 : 0,
         onMorning: f.onMorning ? 1 : 0, morningHour: f.morningHour, onQuiet: f.onQuiet ? 1 : 0, quietFrom: f.quietFrom, quietTo: f.quietTo,
         ...(foundPlace ? { city: foundPlace.label, lat: foundPlace.lat, lon: foundPlace.lon } : {}) });
       Object.assign(ncfg, f);
       if (foundPlace) { Object.assign(ncfg, { city: foundPlace.label, lat: foundPlace.lat, lon: foundPlace.lon, hasLoc: true }); foundPlace = null; }
-      msg.textContent = f.topic ? "Сохранено. Нажмите «Проверить», чтобы получить пробное уведомление." : "Сохранено. Уведомления выключены, пока не задано название канала.";
+      msg.textContent = ncfg.phones ? "Сохранено. Нажмите «Проверить», чтобы получить пробное уведомление." : "Сохранено. Чтобы уведомления приходили, подключите телефон (см. выше).";
       renderHome();
     } catch (e) { msg.textContent = "Не удалось сохранить: " + (e.message || "нет связи с мостиком"); }
   });
@@ -2248,6 +2263,103 @@ input[type="date"].input { color-scheme: dark; }
     e.target.value = "";
   });
   $("photo-clear").addEventListener("click", () => { delete photos[current]; store.del("photo-" + current); render(); });
+
+
+  /* ================= push-уведомления =================
+     Телефон подписывается на встроенные уведомления Android (Web Push) и отдаёт мостику
+     «код подключения»: адрес своего push-канала, ключи шифрования и ключ подписи.
+     Подписаться можно только на защищённой странице (github.io), поэтому код передаётся
+     переходом на страницу мостика в домашней сети. */
+  let pushPhones = [];
+  const SITE_HOST = "diana-troyanova.github.io";
+  const b64u = (u8) => btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+  const utf8 = (s) => new TextEncoder().encode(s);
+  const canPush = () => window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  async function phoneName() {
+    try { if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) { const h = await navigator.userAgentData.getHighEntropyValues(["model"]); if (h.model && h.model.length > 1) return h.model; } } catch (e) {}
+    const m = navigator.userAgent.match(/Android [\d.]+; ([^;)]+)/);
+    return m && m[1].trim().length > 2 ? m[1].trim() : "Телефон Android";
+  }
+  async function pushEnable() {
+    const msg = $("push-msg");
+    if (!canPush()) { msg.textContent = "Уведомления включаются в Chrome на Android, в приложении по адресу " + SITE_HOST + "/mynissan."; return; }
+    msg.textContent = "Включаю…";
+    try {
+      const reg = await navigator.serviceWorker.register("sw.js");
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { msg.textContent = "Уведомления запрещены. Разрешите их: значок слева от адреса → Разрешения → Уведомления."; return; }
+      let keys = store.get("vapid", null);
+      if (!keys) {   // свой ключ подписи для этого телефона: мостик подписывает им каждое уведомление
+        const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign"]);
+        const raw = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+        const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+        keys = { pub: b64u(raw), d: jwk.d };
+        store.set("vapid", keys);
+      }
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        const k = sub.options && sub.options.applicationServerKey;
+        if (!k || b64u(new Uint8Array(k)) !== keys.pub) { await sub.unsubscribe(); sub = null; }
+      }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(keys.pub) });
+      const j = sub.toJSON();
+      const code = ["MN1", b64u(utf8(j.endpoint)), j.keys.p256dh, j.keys.auth, keys.pub, keys.d, b64u(utf8(await phoneName()))].join("~");
+      store.set("push-code", code);
+      msg.textContent = "Готово. Теперь, будучи дома в Wi-Fi, нажмите «Передать мостику».";
+      buzz(10);
+    } catch (e) {
+      msg.textContent = "Не получилось включить уведомления" + (e && e.message ? ": " + e.message : "") + ". Проверьте, что приложение открыто в Chrome, а не внутри другого приложения.";
+    }
+    render();
+  }
+  function pushSend() {
+    const code = store.get("push-code", null);
+    if (!code) return;
+    const host = ($("push-host").value.trim() || "mynissan.local").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    store.set("bridge-host", host);
+    store.set("push-sent", Date.now());
+    location.href = "http://" + host + "/push#c=" + encodeURIComponent(code);
+  }
+  async function pushCopy() {
+    const code = store.get("push-code", null), msg = $("push-msg");
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); msg.textContent = "Код скопирован. Вставьте его на странице мостика: адрес мостика/push."; }
+    catch (e) { msg.textContent = code; }
+  }
+  function renderPush() {
+    const phone = canPush() && !live, code = store.get("push-code", null);
+    $("push-phone").hidden = !phone;
+    $("push-bridge").hidden = !live;
+    $("n-events").hidden = !live;
+    $("n-events-note").hidden = live;
+    if (phone) {
+      const st = !code ? "не подключён" : store.get("push-sent", 0) ? "передан мостику" : "передайте мостику";
+      $("push-state").textContent = st;
+      $("push-state").className = "side" + (code ? "" : " off");
+      $("push-on").textContent = code ? "Обновить" : "Включить";
+      $("push-send").disabled = !code; $("push-copy").disabled = !code;
+      if (!$("push-host").value) $("push-host").value = store.get("bridge-host", "mynissan.local");
+    }
+    if (live) {
+      const li = (a, btn) => '<div class="li"><span>' + a + "</span>" + btn + "</div>";
+      $("push-list").innerHTML = pushPhones.length
+        ? pushPhones.map((p, i) => li(esc(p.name), '<button class="mini" data-pdel="' + i + '">Убрать</button>')).join("")
+        : '<div class="empty">Телефонов пока нет. Откройте приложение на телефоне по адресу ' + SITE_HOST + '/mynissan → Настройки → Уведомления → «Включить».</div>';
+    }
+    if (!phone && !live && !$("push-msg").textContent) $("push-msg").textContent = "Чтобы включить уведомления, откройте приложение в Chrome по адресу " + SITE_HOST + "/mynissan.";
+  }
+  $("push-on").addEventListener("click", pushEnable);
+  $("push-send").addEventListener("click", pushSend);
+  $("push-copy").addEventListener("click", pushCopy);
+  $("push-list").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-pdel]"); if (!b) return;
+    try { await post("api/push/del", { i: b.dataset.pdel }); await loadNotify(); } catch (err) {}
+    renderSettings(); renderHome();
+  });
+  // если приложение уже подключено, держим service worker в актуальном состоянии
+  if (canPush() && store.get("push-code", null)) navigator.serviceWorker.register("sw.js").catch(() => {});
 
   /* ================= прямое подключение к адаптеру =================
      Без мостика телефон сам подключается к ELM327 по Bluetooth LE (Chrome на Android).
@@ -2549,7 +2661,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-03-4";
+  const BUILD = "2026-11-03-5";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
