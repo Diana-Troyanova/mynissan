@@ -465,7 +465,7 @@ input[type="date"].input { color-scheme: dark; }
         <li>Откройте приложение в <b>Chrome</b> по адресу <b>diana-troyanova.github.io/mynissan</b>.</li>
         <li>Включите на телефоне <b>Bluetooth</b> и <b>геолокацию</b>. Без геолокации Android не находит адаптеры.</li>
         <li>Вставьте адаптер в разъём OBD2: он под рулём слева внизу, на уровне колена. На адаптере загорится огонёк.</li>
-        <li><b>Заведите машину</b>: нажмите тормоз и кнопку запуска, чтобы включилась вся панель приборов, как перед поездкой. У Leaf при этом загорается <b>READY</b>, у Ariya такой надписи нет — достаточно, чтобы машина была заведена.</li>
+        <li><b>Заведите машину</b>, как перед поездкой: нажмите тормоз и кнопку запуска, чтобы включилась вся панель приборов. Если машина просто открыта, блок батареи спит и не отвечает.</li>
         <li>Вверху выберите машину, в которой стоит адаптер: Leaf или Ariya.</li>
         <li>На главной нажмите <b>«Подключить адаптер»</b> и выберите его в списке: обычно <b>OBDII</b>, <b>V-LINK</b> или <b>Vgate</b>.</li>
         <li>Если Chrome спросит разрешение на устройства поблизости, разрешите.</li>
@@ -491,7 +491,7 @@ input[type="date"].input { color-scheme: dark; }
 
       <h3>Если не получается</h3>
       <div class="list">
-        <div class="li"><span>Подключился, но «машина не отвечает»</span><span class="muted">заведите машину (у Leaf — до READY) и потяните главный экран вниз</span></div>
+        <div class="li"><span>Подключился, но «машина не отвечает»</span><span class="muted">заведите машину, как перед поездкой, и потяните главный экран вниз</span></div>
         <div class="li"><span>Ariya на связи, а заряда нет</span><span class="muted">машина не отдаёт заряд стандартной командой — команды подберём через консоль ниже</span></div>
         <div class="li"><span>У Leaf нет данных батареи</span><span class="muted">адаптер-клон не понимает нужные команды, нужен другой</span></div>
         <div class="li"><span>Пишет «Bluetooth запрещён»</span><span class="muted">откройте приложение в Chrome по адресу diana-troyanova.github.io/mynissan</span></div>
@@ -1361,7 +1361,7 @@ input[type="date"].input { color-scheme: dark; }
       if (mine && ble.state === "busy") return ["Подключаюсь к адаптеру…", ""];
       if (mine && ble.state === "off" && ble.err) return ['<a href="#settings" class="warn-text">Не подключилось — подробнее в настройках</a>', ""];
       const d = direct[current];
-      if (mine && ble.state === "on" && d && !d.awake) return ["Адаптер на связи, машина не отвечает", current === "leaf" ? "включите READY" : "заведите машину"];
+      if (mine && ble.state === "on" && d && !d.awake) return ["Адаптер на связи, машина не отвечает", "заведите машину"];
       if (!d || !d.lastAwake) return ["", ""];
       if (mine && ble.state === "on" && v.awake) return ["Обновлено " + ago(d.lastAwake), "лимит " + (ncfg.limit || 80) + "%"];
       return ["Данные " + when(d.lastAwake), ""];
@@ -2455,7 +2455,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-03-2";
+  const BUILD = "2026-11-03-3";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
