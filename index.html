@@ -465,7 +465,7 @@ input[type="date"].input { color-scheme: dark; }
         <li>Откройте приложение в <b>Chrome</b> по адресу <b>diana-troyanova.github.io/mynissan</b>.</li>
         <li>Включите на телефоне <b>Bluetooth</b> и <b>геолокацию</b>. Без геолокации Android не находит адаптеры.</li>
         <li>Вставьте адаптер в разъём OBD2: он под рулём слева внизу, на уровне колена. На адаптере загорится огонёк.</li>
-        <li>Включите машину, чтобы горело <b>READY</b>.</li>
+        <li><b>Заведите машину</b>: нажмите тормоз и кнопку запуска, чтобы включилась вся панель приборов, как перед поездкой. У Leaf при этом загорается <b>READY</b>, у Ariya такой надписи нет — достаточно, чтобы машина была заведена.</li>
         <li>Вверху выберите машину, в которой стоит адаптер: Leaf или Ariya.</li>
         <li>На главной нажмите <b>«Подключить адаптер»</b> и выберите его в списке: обычно <b>OBDII</b>, <b>V-LINK</b> или <b>Vgate</b>.</li>
         <li>Если Chrome спросит разрешение на устройства поблизости, разрешите.</li>
@@ -477,21 +477,21 @@ input[type="date"].input { color-scheme: dark; }
       <ol class="steps">
         <li>Обновите <b>Chrome</b> в Google Play: нужна версия 137 или новее.</li>
         <li>Откройте настройки телефона → <b>Bluetooth</b>, найдите адаптер среди доступных устройств и сопрягите его. PIN обычно <b>1234</b> или <b>0000</b>.</li>
-        <li>Вернитесь сюда, в «Настройки», к карточке <b>«Адаптер по Bluetooth»</b>. Вверху выберите машину и включите в ней <b>READY</b>.</li>
+        <li>Вернитесь сюда, в «Настройки», к карточке <b>«Адаптер по Bluetooth»</b>. Вверху выберите машину и заведите её.</li>
         <li>Нажмите <b>«Обычный Bluetooth»</b> и выберите адаптер в списке.</li>
       </ol>
       <p class="muted">Приложение запомнит этот способ, и дальше кнопка «Подключить адаптер» на главной будет подключать сразу.</p>
 
       <h3>Если адаптера нет и в настройках Bluetooth телефона</h3>
       <ol class="steps">
-        <li>Посмотрите, горит ли на адаптере огонёк. Если нет — разъём без питания: включите в машине <b>READY</b> и вставьте адаптер до упора.</li>
+        <li>Посмотрите, горит ли на адаптере огонёк. Если нет — разъём без питания: заведите машину и вставьте адаптер до упора.</li>
         <li>Адаптер может быть занят другим приложением. Закройте Car Scanner, Leaf Spy и другие программы для OBD, выключите и снова включите Bluetooth на телефоне.</li>
         <li>Выньте адаптер из разъёма на 10 секунд и вставьте обратно.</li>
       </ol>
 
       <h3>Если не получается</h3>
       <div class="list">
-        <div class="li"><span>Подключился, но «машина не отвечает»</span><span class="muted">включите READY и потяните главный экран вниз</span></div>
+        <div class="li"><span>Подключился, но «машина не отвечает»</span><span class="muted">заведите машину (у Leaf — до READY) и потяните главный экран вниз</span></div>
         <div class="li"><span>Ariya на связи, а заряда нет</span><span class="muted">машина не отдаёт заряд стандартной командой — команды подберём через консоль ниже</span></div>
         <div class="li"><span>У Leaf нет данных батареи</span><span class="muted">адаптер-клон не понимает нужные команды, нужен другой</span></div>
         <div class="li"><span>Пишет «Bluetooth запрещён»</span><span class="muted">откройте приложение в Chrome по адресу diana-troyanova.github.io/mynissan</span></div>
@@ -508,7 +508,7 @@ input[type="date"].input { color-scheme: dark; }
 
     <div class="card" id="ble-card" hidden>
       <div class="card-head"><h2>Адаптер по Bluetooth <span class="muted" id="ble-mode"></span></h2></div>
-      <p class="muted">Выберите машину сверху, включите READY и нажмите кнопку. Если адаптера нет в списке Bluetooth LE, попробуйте обычный Bluetooth.</p>
+      <p class="muted">Выберите машину сверху, заведите её и нажмите кнопку. Если адаптера нет в списке Bluetooth LE, попробуйте обычный Bluetooth.</p>
       <div class="btn-row"><button class="btn" id="ble-btn">Bluetooth LE</button><button class="btn ghost" id="ble-serial">Обычный Bluetooth</button></div>
       <p class="note warn" id="ble-err" hidden></p>
       <div class="list" id="ble-check"></div>
@@ -1361,7 +1361,7 @@ input[type="date"].input { color-scheme: dark; }
       if (mine && ble.state === "busy") return ["Подключаюсь к адаптеру…", ""];
       if (mine && ble.state === "off" && ble.err) return ['<a href="#settings" class="warn-text">Не подключилось — подробнее в настройках</a>', ""];
       const d = direct[current];
-      if (mine && ble.state === "on" && d && !d.awake) return ["Адаптер на связи, машина не отвечает", "включите READY"];
+      if (mine && ble.state === "on" && d && !d.awake) return ["Адаптер на связи, машина не отвечает", current === "leaf" ? "включите READY" : "заведите машину"];
       if (!d || !d.lastAwake) return ["", ""];
       if (mine && ble.state === "on" && v.awake) return ["Обновлено " + ago(d.lastAwake), "лимит " + (ncfg.limit || 80) + "%"];
       return ["Данные " + when(d.lastAwake), ""];
@@ -2455,7 +2455,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-03-1";
+  const BUILD = "2026-11-03-2";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
