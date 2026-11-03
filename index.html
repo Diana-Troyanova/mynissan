@@ -390,7 +390,7 @@ input[type="date"].input { color-scheme: dark; }
     <div class="card" id="temps-card"><h2>Температура</h2><div class="list" id="temps"></div></div>
     <div class="card" id="b-unknown">
       <h2>Что ещё известно</h2>
-      <p class="muted">Для Ariya пока читается только заряд. Здоровье, ячейки и температуры появятся, когда найдём нужные команды. Искать их можно в консоли в настройках.</p>
+      <p class="muted">Для Ariya читаются заряд, напряжение батареи, самая высокая и низкая ячейка и температуры. Здоровье батареи Ariya по OBD пока не найдено.</p>
     </div>
   </section>
 
@@ -560,6 +560,7 @@ input[type="date"].input { color-scheme: dark; }
         <button class="chip" data-c="ATDP">ATDP</button>
         <button class="chip" data-c="0100">0100</button>
         <button class="chip" data-c="015B">015B</button>
+        <button class="chip" data-c="229001">229001</button>
         <button class="chip" data-c="0902">0902</button>
       </div>
       <form class="cmd-row" id="con-form">
@@ -587,6 +588,11 @@ input[type="date"].input { color-scheme: dark; }
         <div class="li"><span><a href="https://sketchfab.com/3d-models/nissan-leaf-mk1-ze0-2010-2017-27160fcef85548a580353a9178a6b6f1" style="color:var(--ink)">Nissan Leaf MK1 ZE0 2010–2017</a></span><span class="muted">Merc_TV</span></div>
         <div class="li"><span><a href="https://sketchfab.com/3d-models/nissan-ariya-b0631f75173a4f48b331d770c86c1031" style="color:var(--ink)">Nissan Ariya</a></span><span class="muted">MattDoesBlender</span></div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Команды Ariya</h2>
+      <p class="muted">Адреса блока батареи и формулы взяты из открытой базы <a href="https://github.com/OBDb/Nissan-ARIYA" style="color:var(--ink)">OBDb Nissan-ARIYA</a>, лицензия CC BY-SA 4.0.</p>
     </div>
   </section>
 </div>
@@ -757,7 +763,31 @@ input[type="date"].input { color-scheme: dark; }
     }
     return null;
   }
-  const ariyaSoc = (raw) => { const d = obdPid(raw, "5B"); return d && d.length ? d[0] * 100 / 255 : null; };
+  // Ariya: блок батареи отвечает по 29-битным адресам CAN (запрос 18DADBF1, ответ 18DAF1DB), команды UDS 22 xxxx.
+  // Номера параметров и формулы — из открытой базы OBDb (github.com/OBDb/Nissan-ARIYA, CC BY-SA 4.0).
+  const ARIYA_RX = "18 DA F1 DB";
+  function ariyaDid(raw, did) {
+    const p = isoTp(raw, ARIYA_RX);
+    if (!p || p.length < 4 || p[0] !== 0x62 || ((p[1] << 8) | p[2]) !== did) return null;
+    return p.slice(3);
+  }
+  const ariyaSoc = (raw) => {
+    const b = ariyaDid(raw, 0x9001);
+    if (b && b.length >= 2) { const x = u16(b, 0) / 100 - 3; return x >= 0 && x <= 105 ? Math.min(100, x) : null; }
+    const d = obdPid(raw, "5B");   // стандартный запрос OBD — на случай, если машина его всё же поддерживает
+    return d && d.length ? d[0] * 100 / 255 : null;
+  };
+  function ariyaDecode(raw, v) {
+    v.soc = ariyaSoc(raw["229001"] || raw["015B"]);
+    let b = ariyaDid(raw["229006"], 0x9006);
+    if (b && b.length >= 4) { const x = s32(b, 0) / 1024; if (x > 200 && x < 1000) v.packV = x; }
+    const cell = (k, did) => { const c = ariyaDid(raw[k], did); return c && c.length >= 2 ? u16(c, 0) * 0.000976563 : null; };
+    const hi = cell("229007", 0x9007), lo = cell("229009", 0x9009);
+    if (hi > 2 && hi < 4.6 && lo > 2 && lo < 4.6) { v.vmax = hi; v.vmin = lo; v.cellCount = 96; }
+    const temp = (k, did) => { const c = ariyaDid(raw[k], did); return c && c.length >= 2 ? u16(c, 0) / 16 - 40 : null; };
+    const t = [temp("229013", 0x9013), temp("229014", 0x9014)].filter((x) => x != null && x > -40 && x < 80).map((x) => Math.round(x));
+    if (t.length) v.temps = t;
+  }
 
   /* ================= история ================= */
   function parseHist(car, text) {
@@ -817,7 +847,7 @@ input[type="date"].input { color-scheme: dark; }
       const cells = leafCells(raw["2102"]);
       if (cells) { v.vmin = Math.min(...cells); v.vmax = Math.max(...cells); v.cellCount = cells.length; }
       v.temps = leafTemps(raw["2104"]);
-    } else v.soc = ariyaSoc(raw["015B"]);
+    } else ariyaDecode(raw, v);
     return v;
   }
   function buildView(car) {
@@ -1224,6 +1254,7 @@ input[type="date"].input { color-scheme: dark; }
   const anchorVec = { p: null, n: null };
   function placeSpots(rec) {
     const T = V3.T, cfg = MODEL3D[current], w = V3.canvas.clientWidth, h = V3.canvas.clientHeight;
+    if (!w || !h) { document.querySelectorAll("#car-wrap .spot").forEach((b) => b.classList.add("off")); V3.w = 0; return; }
     if (!anchorVec.p) { anchorVec.p = new T.Vector3(); anchorVec.n = new T.Vector3(); anchorVec.c = new T.Vector3(); }
     const yaw = V3.yaw[current], axis = new T.Vector3(0, 1, 0);
     document.querySelectorAll("#car-wrap .spot").forEach((b) => {
@@ -1415,7 +1446,7 @@ input[type="date"].input { color-scheme: dark; }
       $("v-diff").textContent = Math.round((v.vmax - v.vmin) * 1000);
     }
     $("temps-card").hidden = !(v.temps && v.temps.length);
-    if (v.temps) $("temps").innerHTML = v.temps.map((t, i) => li("Датчик " + (i + 1), t + " °C")).join("");
+    if (v.temps) $("temps").innerHTML = v.temps.map((t, i) => li(current === "ariya" ? (v.temps.length === 2 ? ["Самая холодная ячейка", "Самая тёплая ячейка"][i] : "Батарея") : "Датчик " + (i + 1), t + " °C")).join("");
     $("b-unknown").hidden = current !== "ariya";
     renderHealth();
   }
@@ -1824,8 +1855,10 @@ input[type="date"].input { color-scheme: dark; }
     document.querySelectorAll(".tabbar a").forEach((a) => { if (a.dataset.screen === name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     closeSheet();
     window.scrollTo(0, 0);
+    if (name === "home" && V3.active) { V3.w = 0; kick(); }   // модель могла догрузиться, пока был открыт другой экран
   }
   window.addEventListener("hashchange", route);
+  if (window.ResizeObserver) new ResizeObserver(() => { if (V3.active) { V3.w = 0; kick(); } }).observe($("car-wrap"));
 
   /* ================= события ================= */
   function switchTo(car, dir) {
@@ -2197,8 +2230,13 @@ input[type="date"].input { color-scheme: dark; }
   // каналы, на которых сидят известные BLE-адаптеры ELM327 (китайские клоны, Vgate/vLinker, LELink, OBDLink и др.)
   const BLE_SERVICES = [0xfff0, 0xffe0, 0x18f0, 0xae30, 0xfee7, 0xffb0,
     "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "6e400001-b5a3-f393-e0a9-e50e24dcca9e", "0000fff0-0000-1000-8000-00805f9b34fb"];
-  const CAR_SETUP = { leaf: ["ATSH79B", "ATFCSH79B", "ATFCSD300000", "ATFCSM1", "ATCRA7BB"], ariya: ["ATSH7DF", "ATFCSM0", "ATCRA"] };
-  const CAR_QUERIES = { leaf: ["2101", "2102", "2104"], ariya: ["015B"] };
+  const CAR_SETUP = {
+    leaf: ["ATSP6", "ATSH79B", "ATFCSH79B", "ATFCSD300000", "ATFCSM1", "ATCRA7BB"],
+    // Ariya: CAN 29 бит, 500 кбит/с; блок батареи DB
+    ariya: ["ATSP7", "ATCP18", "ATSHDADBF1", "ATCRA18DAF1DB", "ATFCSH18DADBF1", "ATFCSD300000", "ATFCSM1"]
+  };
+  // заряд, напряжение батареи, самая высокая и низкая ячейка, мин. и макс. температура
+  const CAR_QUERIES = { leaf: ["2101", "2102", "2104"], ariya: ["229001", "229006", "229007", "229009", "229013", "229014"] };
   const isNoData = (r) => !r || /NO DATA|CAN ERROR|UNABLE|BUS|STOPPED|TIMEOUT|ERROR|NOT CONNECTED/.test(r) || r.trim() === "?";
   // как на мостике: пропускаем только запросы на чтение
   function cmdAllowed(c) {
@@ -2406,7 +2444,7 @@ input[type="date"].input { color-scheme: dark; }
     const ck = ble.check;
     $("ble-check").innerHTML = ck && ble.car ? li("Машина", META[ble.car].name) + li("Адаптер", esc(ck.ver || "—")) +
       li("Аккумулятор 12 В", ck.volt != null ? fmt(ck.volt, 1) + " В" : "—") +
-      li(ble.car === "leaf" ? "Блок батареи" : "Заряд по OBD", ck.answer ? '<span class="ok-text">отвечает</span>' : '<span class="warn-text">не отвечает</span>') +
+      li("Блок батареи", ck.answer ? '<span class="ok-text">отвечает</span>' : '<span class="warn-text">не отвечает</span>') +
       (ck.soc != null ? li("Заряд", Math.round(ck.soc) + "%") : "") : "";
   }
   function bleToggle() { if (ble.state === "on") bleDisconnect(); else if (ble.state === "off") bleConnect(current); }
@@ -2417,7 +2455,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-01-2";
+  const BUILD = "2026-11-03-1";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
