@@ -684,8 +684,8 @@ input[type="date"].input { color-scheme: dark; }
     </div>
 
     <div class="card">
-      <h2>Команды Ariya</h2>
-      <p class="muted">Адреса блока батареи и формулы взяты из открытой базы <a href="https://github.com/OBDb/Nissan-ARIYA" style="color:var(--ink)">OBDb Nissan-ARIYA</a>, лицензия CC BY-SA 4.0.</p>
+      <h2>Команды машин</h2>
+      <p class="muted">Адреса блоков батареи и формулы сверены с открытыми базами <a href="https://github.com/OBDb/Nissan-Leaf" style="color:var(--ink)">OBDb Nissan-Leaf</a> и <a href="https://github.com/OBDb/Nissan-ARIYA" style="color:var(--ink)">OBDb Nissan-ARIYA</a>, лицензия CC BY-SA 4.0.</p>
     </div>
   </section>
 </div>
@@ -820,18 +820,26 @@ input[type="date"].input { color-scheme: dark; }
     return total !== null ? out.slice(0, total) : null;
   }
   // Leaf, блок батареи, ответ на 2101. Смещения по данным сообщества — сверим на машине.
+  // Leaf 2011–2017, ответ на 2101 (байты после «61 01»): напряжение 18–19 /100, Hx 26–27 /102.4,
+  // заряд 29–31 /10000, ёмкость 33–35 /10000. Смещения сверены с записями OBDb (github.com/OBDb/Nissan-Leaf).
   function leafMain(raw) {
     const p = isoTp(raw, "7BB");
     if (!p || p[0] !== 0x61 || p[1] !== 0x01) return null;
     const b = p.slice(2);
-    if (b.length < 37) return null;
-    const r = { soc: u24(b, 31) / 10000, hx: u16(b, 26) / 102.4, soh: u16(b, 28) / 100, ah: u24(b, 34) / 10000, packV: u16(b, 20) / 100, current: s32(b, 2) / 1024 };
+    if (b.length < 36) return null;
+    const r = { soc: u24(b, 29) / 10000, hx: u16(b, 26) / 102.4, ah: u24(b, 33) / 10000, packV: u16(b, 18) / 100, current: s32(b, 2) / 1024 };
     if (!(r.soc > 0 && r.soc <= 100)) r.soc = null;
-    if (!(r.soh > 20 && r.soh <= 110)) r.soh = null;
     if (!(r.hx > 10 && r.hx <= 110)) r.hx = null;
     if (!(r.ah > 5 && r.ah < 120)) r.ah = null;
     if (!(r.packV > 200 && r.packV < 450)) r.packV = null;
     return r;
+  }
+  // Leaf, здоровье батареи: ответ на 2161, байты 2–3 после «61 61», /100
+  function leafSoh(raw) {
+    const p = isoTp(raw, "7BB");
+    if (!p || p.length < 6 || p[0] !== 0x61 || p[1] !== 0x61) return null;
+    const x = u16(p, 4) / 100;
+    return x > 20 && x <= 110 ? Math.min(100, x) : null;
   }
   function leafCells(raw) {
     const p = isoTp(raw, "7BB");
@@ -953,6 +961,8 @@ input[type="date"].input { color-scheme: dark; }
   function decodeInto(car, raw, v) {
     if (car === "leaf") {
       Object.assign(v, leafMain(raw["2101"]) || {});
+      const sh = leafSoh(raw["2161"]);
+      if (sh != null) v.soh = sh;
       const cells = leafCells(raw["2102"]);
       if (cells) { v.vmin = Math.min(...cells); v.vmax = Math.max(...cells); v.cellCount = cells.length; }
       v.temps = leafTemps(raw["2104"]);
@@ -2434,7 +2444,7 @@ input[type="date"].input { color-scheme: dark; }
   };
   // заряд, напряжение батареи, самая высокая и низкая ячейка, мин. и макс. температура
   // команды на AT — переключение на другой блок, их ответ не сохраняем
-  const CAR_QUERIES = { leaf: ["2101", "2102", "2104"], ariya: ["229001", "229006", "229007", "229009", "229013", "229014",
+  const CAR_QUERIES = { leaf: ["2101", "2102", "2104", "2161"], ariya: ["229001", "229006", "229007", "229009", "229013", "229014",
     "ATSHDADAF1", "ATCRA18DAF1DA", "ATFCSH18DADAF1", "229002", "229003", "2291C8"] };
   const isNoData = (r) => !r || /NO DATA|CAN ERROR|UNABLE|BUS|STOPPED|TIMEOUT|ERROR|NOT CONNECTED/.test(r) || r.trim() === "?";
   // как на мостике: пропускаем только запросы на чтение
@@ -2730,7 +2740,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-04-2";
+  const BUILD = "2026-11-04-3";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
