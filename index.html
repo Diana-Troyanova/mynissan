@@ -404,7 +404,7 @@ input[type="date"].input { color-scheme: dark; }
     <div class="card" id="temps-card"><h2>Температура</h2><div class="list" id="temps"></div></div>
     <div class="card" id="b-unknown">
       <h2>Что ещё известно</h2>
-      <p class="muted">Для Ariya читаются заряд, напряжение батареи, самая высокая и низкая ячейка и температуры. Здоровье батареи Ariya по OBD пока не найдено.</p>
+      <p class="muted">Здоровье батареи эта Ariya по OBD не отдала. Заряд, напряжение, ячейки и температуры читаются из блока батареи.</p>
     </div>
   </section>
 
@@ -864,13 +864,15 @@ input[type="date"].input { color-scheme: dark; }
   }
   // Ariya: блок батареи отвечает по 29-битным адресам CAN (запрос 18DADBF1, ответ 18DAF1DB), команды UDS 22 xxxx.
   // Номера параметров и формулы — из открытой базы OBDb (github.com/OBDb/Nissan-ARIYA, CC BY-SA 4.0).
-  const ARIYA_RX = "18 DA F1 DB";
-  function ariyaDid(raw, did) {
-    const p = isoTp(raw, ARIYA_RX);
+  const ARIYA_RX = "18 DA F1 DB", ARIYA_VCM_RX = "18 DA F1 DA";
+  function ariyaDid(raw, did, rx) {
+    const p = isoTp(raw, rx || ARIYA_RX);
     if (!p || p.length < 4 || p[0] !== 0x62 || ((p[1] << 8) | p[2]) !== did) return null;
     return p.slice(3);
   }
   const ariyaSoc = (raw) => {
+    const sh = ariyaDid(raw, 0x9002, ARIYA_VCM_RX);   // заряд «как на панели» (история с мостика)
+    if (sh && sh.length >= 2) { const x = u16(sh, 0) / 100; if (x >= 0 && x <= 100) return x; }
     const b = ariyaDid(raw, 0x9001);
     if (b && b.length >= 2) { const x = u16(b, 0) / 100 - 3; return x >= 0 && x <= 105 ? Math.min(100, x) : null; }
     const d = obdPid(raw, "5B");   // стандартный запрос OBD — на случай, если машина его всё же поддерживает
@@ -878,6 +880,14 @@ input[type="date"].input { color-scheme: dark; }
   };
   function ariyaDecode(raw, v) {
     v.soc = ariyaSoc(raw["229001"] || raw["015B"]);
+    v.socBms = v.soc;
+    // второй блок (DA) отдаёт заряд так, как его показывает панель, здоровье и ёмкость батареи
+    let c = ariyaDid(raw["229002"], 0x9002, ARIYA_VCM_RX);
+    if (c && c.length >= 2) { const x = u16(c, 0) / 100; if (x >= 0 && x <= 100) { v.soc = x; v.socShown = true; } }
+    c = ariyaDid(raw["229003"], 0x9003, ARIYA_VCM_RX);
+    if (c && c.length >= 2) { const x = u16(c, 0) / 100; if (x > 50 && x <= 110) v.soh = Math.min(100, x); }
+    c = ariyaDid(raw["2291C8"], 0x91c8, ARIYA_VCM_RX);
+    if (c && c.length >= 3) { const x = u24(c, 0) / 1000; if (x > 20 && x < 110) v.capKwhCar = x; }
     let b = ariyaDid(raw["229006"], 0x9006);
     if (b && b.length >= 4) { const x = s32(b, 0) / 1024; if (x > 200 && x < 1000) v.packV = x; }
     const cell = (k, did) => { const c = ariyaDid(raw[k], did); return c && c.length >= 2 ? u16(c, 0) * 0.000976563 : null; };
@@ -969,7 +979,7 @@ input[type="date"].input { color-scheme: dark; }
     if (v.soh == null && v.ah && m.nominalAh) v.soh = v.ah / m.nominalAh * 100;
     v.temp = v.temps && v.temps.length ? Math.round(v.temps.reduce((a, b) => a + b, 0) / v.temps.length) : null;
     v.bars = car === "leaf" ? leafBars(v.soh) : null;
-    v.capKwh = m.nominal * (v.soh != null ? v.soh / 100 : 1);
+    v.capKwh = v.capKwhCar || m.nominal * (v.soh != null ? v.soh / 100 : 1);
     if (v.soc == null) { const h = hist[car].filter((p) => p.soc != null); if (h.length) v.soc = h[h.length - 1].soc; }
     v.sess = findSessions(hist[car], v.capKwh);
     v.charging = !!(v.sess[0] && v.sess[0].ongoing && v.awake);
@@ -1546,7 +1556,7 @@ input[type="date"].input { color-scheme: dark; }
     }
     $("temps-card").hidden = !(v.temps && v.temps.length);
     if (v.temps) $("temps").innerHTML = v.temps.map((t, i) => li(current === "ariya" ? (v.temps.length === 2 ? ["Самая холодная ячейка", "Самая тёплая ячейка"][i] : "Батарея") : "Датчик " + (i + 1), t + " °C")).join("");
-    $("b-unknown").hidden = current !== "ariya";
+    $("b-unknown").hidden = current !== "ariya" || v.soh != null;
     renderHealth();
   }
   function renderHealth() {
@@ -2423,7 +2433,9 @@ input[type="date"].input { color-scheme: dark; }
     ariya: ["ATSP7", "ATCP18", "ATSHDADBF1", "ATCRA18DAF1DB", "ATFCSH18DADBF1", "ATFCSD300000", "ATFCSM1"]
   };
   // заряд, напряжение батареи, самая высокая и низкая ячейка, мин. и макс. температура
-  const CAR_QUERIES = { leaf: ["2101", "2102", "2104"], ariya: ["229001", "229006", "229007", "229009", "229013", "229014"] };
+  // команды на AT — переключение на другой блок, их ответ не сохраняем
+  const CAR_QUERIES = { leaf: ["2101", "2102", "2104"], ariya: ["229001", "229006", "229007", "229009", "229013", "229014",
+    "ATSHDADAF1", "ATCRA18DAF1DA", "ATFCSH18DADAF1", "229002", "229003", "2291C8"] };
   const isNoData = (r) => !r || /NO DATA|CAN ERROR|UNABLE|BUS|STOPPED|TIMEOUT|ERROR|NOT CONNECTED/.test(r) || r.trim() === "?";
   // как на мостике: пропускаем только запросы на чтение
   function cmdAllowed(c) {
@@ -2598,6 +2610,16 @@ input[type="date"].input { color-scheme: dark; }
       const v = decodeInto(car, car === "leaf" ? { "2101": r1 } : { "229001": r1 }, {});
       const battOk = v.soc != null;
       rows.push(["Блок батареи (" + q + ")", battOk ? "отвечает, заряд " + Math.round(v.soc) + "%" : isNoData(r1) ? "молчит" : "ответ непонятный", battOk]);
+      // остальные запросы — в отчёт целиком, чтобы можно было сверить расшифровку
+      if (battOk) {
+        const raw = car === "leaf" ? { "2101": r1 } : { "229001": r1 };
+        for (const qq of CAR_QUERIES[car].slice(1)) { const r = await ask(qq, 5000); if (!qq.startsWith("AT")) raw[qq] = r; }
+        const all = decodeInto(car, raw, {});
+        const f1 = (x, d) => x == null ? "—" : fmt(x, d);
+        if (car === "ariya") rows.push(["Заряд: блок батареи / как на панели", f1(all.socBms, 1) + "% / " + (all.socShown ? f1(all.soc, 1) + "%" : "не отвечает"), !!all.socShown]);
+        log.push("Расшифровка: заряд " + f1(all.soc, 2) + "% (блок батареи " + f1(all.socBms, 2) + "%), ёмкость по машине " + f1(all.capKwhCar, 1) + " кВт·ч, здоровье " + f1(all.soh, 2) + "%, Hx " + f1(all.hx, 2) + ", ёмкость " + f1(all.ah, 2) + " А·ч, батарея " + f1(all.packV, 1) +
+          " В, ячейки " + f1(all.vmin, 3) + "…" + f1(all.vmax, 3) + " В, температуры " + (all.temps ? all.temps.join(", ") : "—") + " °C");
+      }
       // стандартный OBD: отвечает ли машина вообще
       await ask("ATSP0");
       const r0 = await ask("0100", 8000);
@@ -2628,6 +2650,7 @@ input[type="date"].input { color-scheme: dark; }
       const raw = {};
       let awake = false, first = true;
       for (const q of CAR_QUERIES[car]) {
+        if (q.startsWith("AT")) { await elm(q); continue; }
         const r = await elm(q, 4000);
         if (first) { first = false; awake = !isNoData(r); if (!awake) break; }
         raw[q] = r;
@@ -2707,7 +2730,7 @@ input[type="date"].input { color-scheme: dark; }
   /* ================= запуск ================= */
   // Новая версия на сайте? Телефон держит страницу в памяти — проверяем сами и перезагружаемся.
   // На мостике не нужно: там страница никогда не кэшируется.
-  const BUILD = "2026-11-03-6";
+  const BUILD = "2026-11-04-2";
   async function checkUpdate() {
     if (!/github\.io$/.test(location.hostname)) return;
     try {
